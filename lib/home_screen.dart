@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'text_to_sign_screen.dart';
 import 'sign_to_text_screen.dart';
 import 'screens/avatar_pipeline_screen.dart';
 // in HomeScreen._buildFeatureButton add a button pointing to SignTestScreen()

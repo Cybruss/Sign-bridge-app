@@ -4,18 +4,36 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+/// One frame of holistic landmarks from the native MediaPipe processor.
 class NativeFrameResult {
-  final List<double>? primaryLandmarks;
-  final List<List<double>> allHands;
+  /// Flat 180x3 = 540 feature vector in the trained order
+  /// (21 right-hand, 21 left-hand, 6 pose, 132 face). Null when no person.
+  final List<double>? landmarks180;
+
+  /// Whether at least one hand was detected this frame.
+  final bool hasHands;
+
+  /// 21x3 lists for the on-screen overlay (null when the hand is absent).
+  final List<double>? rightHand;
+  final List<double>? leftHand;
 
   const NativeFrameResult({
-    required this.primaryLandmarks,
-    required this.allHands,
+    required this.landmarks180,
+    required this.hasHands,
+    required this.rightHand,
+    required this.leftHand,
   });
+
+  /// Hands for the overlay painter (each 63 long), primary first.
+  List<List<double>> get overlayHands => [
+        if (rightHand != null) rightHand!,
+        if (leftHand != null) leftHand!,
+      ];
 }
 
 class NativeLandmarkerService {
-  static const MethodChannel _channel = MethodChannel('com.example.sign_bridge/landmarker');
+  static const MethodChannel _channel =
+      MethodChannel('com.example.sign_bridge/landmarker');
   bool _busy = false;
 
   Future<bool> isAvailable() async {
@@ -51,20 +69,15 @@ class NativeLandmarkerService {
         'vPixelStride': image.planes[2].bytesPerPixel ?? 1,
       };
 
-      final response = await _channel.invokeMethod<Map<dynamic, dynamic>>('processFrame', args);
-      if (response == null) return null;
-
-      final primaryRaw = response['landmarks'] as List<dynamic>?;
-      final allHandsRaw = response['allHands'] as List<dynamic>?;
-
-      final primary = primaryRaw?.cast<num>().map((value) => value.toDouble()).toList();
-      final allHands = (allHandsRaw ?? const <dynamic>[])
-          .map((hand) => (hand as List<dynamic>).cast<num>().map((value) => value.toDouble()).toList())
-          .toList();
+      final response =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>('processFrame', args);
+      if (response == null || response.isEmpty) return null;
 
       return NativeFrameResult(
-        primaryLandmarks: primary,
-        allHands: allHands,
+        landmarks180: _toDoubles(response['landmarks180']),
+        hasHands: response['hasHands'] == true,
+        rightHand: _toDoubles(response['rightHand']),
+        leftHand: _toDoubles(response['leftHand']),
       );
     } on PlatformException catch (e) {
       debugPrint('NativeLandmarkerService.processFrame platform error: ${e.message}');
@@ -75,6 +88,11 @@ class NativeLandmarkerService {
     } finally {
       _busy = false;
     }
+  }
+
+  static List<double>? _toDoubles(Object? raw) {
+    if (raw is! List) return null;
+    return raw.cast<num>().map((v) => v.toDouble()).toList();
   }
 
   void dispose() {

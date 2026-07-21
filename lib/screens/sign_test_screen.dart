@@ -34,7 +34,7 @@ class _SignTestScreenState extends State<SignTestScreen> {
     if (_svc == null) return;
     setState(() => _status = 'Running inference on zero input...');
     final frames = List.generate(64, (_) => List.generate(180, (_) => [0.0, 0.0, 0.0]));
-    final res = await _svc!.predict(frames);
+    final res = _svc!.predict(frames);
     setState(() {
       _preds = res;
       _status = 'Done';

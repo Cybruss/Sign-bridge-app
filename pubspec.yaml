@@ -94,8 +94,6 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
   assets:
-    - assets/models/sign_language_model.tflite
-    - assets/models/labels.txt
     - assets/ml/sign_bridge.tflite
     - assets/ml/labels.json
     - assets/avatars/AmyAvatarnew.glb

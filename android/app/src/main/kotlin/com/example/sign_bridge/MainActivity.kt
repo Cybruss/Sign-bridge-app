@@ -21,12 +21,12 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val channelName = "com.example.sign_bridge/landmarker"
-    private lateinit var processor: HandLandmarkerProcessor
+    private lateinit var processor: HolisticLandmarkerProcessor
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        processor = HandLandmarkerProcessor(applicationContext)
+        processor = HolisticLandmarkerProcessor(applicationContext)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -38,14 +38,10 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
 
-                    val request = HandLandmarkerProcessor.FrameRequest.from(args)
+                    val request = HolisticLandmarkerProcessor.FrameRequest.from(args)
                     processor.processFrame(request) { frameResult ->
                         result.success(frameResult)
                     }
-                }
-                "clearLandmarks" -> {
-                    LandmarkerBridge.clearLatest()
-                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
