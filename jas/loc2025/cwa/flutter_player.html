@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Bridge Avatar Player</title>
+  <link rel="stylesheet" href="cwasa.css" />
+  <script type="text/javascript" src="allcsa.js"></script>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body {
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    .header {
+      padding: 8px 12px;
+      font-size: 14px;
+      background: #1e1e1e;
+      border-bottom: 1px solid #333;
+    }
+    .CWASAPanel.av0 {
+      width: 100% !important;
+      height: calc(100% - 34px) !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      box-sizing: border-box;
+    }
+    .divCtrlPanel,
+    .txtaSiGMLText,
+    .statusLog,
+    .txtSiGMLURL,
+    .menuAv,
+    .txtFPS,
+    .txtSF,
+    .txtGloss {
+      display: none !important;
+    }
+    .divAv,
+    .CWASAAvatar,
+    .canvasAv,
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
+  <script>
+    function postToFlutter(msg) {
+      try {
+        if (window.AvatarBridge) {
+          window.AvatarBridge.postMessage(msg);
+        }
+      } catch (_) {}
+    }
+
+    window.onerror = function(message, source, lineno, colno) {
+      postToFlutter('error:' + message + ' @' + source + ':' + lineno + ':' + colno);
+    };
+
+    function initAvatar() {
+      try {
+        if (typeof CWASA === 'undefined') {
+          postToFlutter('error:CWASA is undefined (allcsa.js not loaded)');
+          return;
+        }
+
+        var href = String(window.location.href || '');
+        var split = href.split('/cwa/');
+        var jasBase = split.length > 1 ? (split[0] + '/') : 'file:///android_asset/flutter_assets/jas/loc2025/';
+        var cwaBase = jasBase + 'cwa/';
+
+        postToFlutter('status:Using jasBase=' + jasBase);
+
+        CWASA.addHook('status', function(evt) {
+          var msg = (evt && evt.msg) ? String(evt.msg) : 'status event';
+          postToFlutter('status:' + msg);
+        });
+
+        CWASA.init({
+          jasBase: jasBase,
+          cwaBase: cwaBase,
+          useCwaConfig: false,
+          avSettings: {
+            width: 360,
+            height: 300,
+            initCamera: [0.00, 0.53, 2.06, -12.50, 18.00, 30.00, -1.00, -1.00],
+            initSpeed: -1,
+            rateSpeed: 4,
+            initAv: 'anna',
+            initSiGMLURL: 'welkom-ngt.sigml'
+          },
+          useClientConfig: false
+        });
+
+        setTimeout(function() {
+          var canvases = document.querySelectorAll('canvas').length;
+          var panel = document.querySelector('.CWASAPanel.av0');
+          var panelRect = panel ? panel.getBoundingClientRect() : null;
+          postToFlutter('status:canvasCount=' + canvases + ', panel=' + (panelRect ? (panelRect.width + 'x' + panelRect.height) : 'none'));
+        }, 1200);
+
+        postToFlutter('ready');
+      } catch (e) {
+        postToFlutter('error:' + e);
+      }
+    }
+
+    function playSigmlFromFlutter(sigmlText) {
+      try {
+        CWASA.playSiGMLText(sigmlText);
+        postToFlutter('playing');
+      } catch (e) {
+        postToFlutter('error:' + e);
+      }
+    }
+
+    function stopSigmlFromFlutter() {
+      try {
+        CWASA.stopSiGML();
+      } catch (_) {}
+    }
+  </script>
+</head>
+<body onload="initAvatar()">
+  <div class="header">Avatar Preview (SiGML)</div>
+  <div class="CWASAPanel av0" align="center"></div>
+  <div class="SToCA" align="center" style="display:none"></div>
+</body>
+</html>

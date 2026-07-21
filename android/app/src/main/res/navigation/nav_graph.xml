@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/cameraFragment">
+
+    <fragment
+        android:id="@+id/cameraFragment"
+        android:name="com.example.sign_bridge.fragment.CameraFragment"
+        android:label="Camera" />
+
+    <fragment
+        android:id="@+id/galleryFragment"
+        android:name="com.example.sign_bridge.fragment.GalleryFragment"
+        android:label="Gallery" />
+
+    <fragment
+        android:id="@+id/permissionsFragment"
+        android:name="com.example.sign_bridge.fragment.PermissionsFragment"
+        android:label="Permissions" />
+
+    <action
+        android:id="@+id/action_camera_to_permissions"
+        app:destination="@id/permissionsFragment" />
+
+    <action
+        android:id="@+id/action_permissions_to_camera"
+        app:destination="@id/cameraFragment" />
+
+</navigation>
