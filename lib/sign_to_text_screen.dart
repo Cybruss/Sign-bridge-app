@@ -173,7 +173,10 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
 
     final controller = CameraController(
       cam,
-      ResolutionPreset.medium,
+      // Low resolution: MediaPipe Holistic only needs enough detail to find
+      // landmarks, and smaller frames mean less YUV data to ship over the
+      // method channel and far faster detection.
+      ResolutionPreset.low,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );

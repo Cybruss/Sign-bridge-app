@@ -43,26 +43,31 @@ class HolisticLandmarkerProcessor(private val context: Context) : AutoCloseable 
     fun isReady(): Boolean = holistic != null
 
     private fun setup() {
-        try {
-            val options = HolisticLandmarker.HolisticLandmarkerOptions.builder()
-                .setBaseOptions(
-                    BaseOptions.builder()
-                        .setModelAssetPath(MODEL_ASSET)
-                        .setDelegate(Delegate.CPU)
-                        .build()
-                )
-                .setRunningMode(RunningMode.IMAGE)
-                .setMinFaceDetectionConfidence(0.5f)
-                .setMinPoseDetectionConfidence(0.5f)
-                .setMinHandLandmarksConfidence(0.5f)
-                .build()
-            holistic = HolisticLandmarker.createFromOptions(context, options)
-            Log.i(TAG, "HolisticLandmarkerProcessor initialized")
-        } catch (t: Throwable) {
-            // Catch Throwable (not just Exception) so an init Error can't crash
-            // the whole app — degrade to "landmarker unavailable" instead.
-            Log.e(TAG, "Failed to initialize HolisticLandmarker: ${t.message}", t)
-            holistic = null
+        // Try the GPU delegate first (much faster for holistic on the Pixel),
+        // then fall back to CPU if the device/driver can't create it.
+        for (delegate in listOf(Delegate.GPU, Delegate.CPU)) {
+            try {
+                val options = HolisticLandmarker.HolisticLandmarkerOptions.builder()
+                    .setBaseOptions(
+                        BaseOptions.builder()
+                            .setModelAssetPath(MODEL_ASSET)
+                            .setDelegate(delegate)
+                            .build()
+                    )
+                    .setRunningMode(RunningMode.IMAGE)
+                    .setMinFaceDetectionConfidence(0.5f)
+                    .setMinPoseDetectionConfidence(0.5f)
+                    .setMinHandLandmarksConfidence(0.5f)
+                    .build()
+                holistic = HolisticLandmarker.createFromOptions(context, options)
+                Log.i(TAG, "HolisticLandmarkerProcessor initialized ($delegate)")
+                return
+            } catch (t: Throwable) {
+                // Catch Throwable (not just Exception) so an init Error can't
+                // crash the app — try the next delegate, else stay unavailable.
+                Log.e(TAG, "Init with $delegate failed: ${t.message}", t)
+                holistic = null
+            }
         }
     }
 
