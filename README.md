@@ -60,6 +60,8 @@ See [docs/TEST_REPORT.md](docs/TEST_REPORT.md) for results from the current audi
 
 The tracked TFLite recognizer expects `[1, 64, 180, 3]` and emits a 300-dimensional embedding ranked against the 351 vectors in `assets/ml/labels.json`. Do not replace this vocabulary or model with the separate untracked 100-word export unless its provenance and compatibility are validated.
 
+The completed WLASL video-to-landmark training run is preserved as an experimental 973-class softmax baseline under [`models/wlasl_video_baseline`](models/wlasl_video_baseline/README.md). Its held-out top-1 accuracy is 3.63%, so it is not connected to the app. See the [run report](docs/model/wlasl_video_baseline.md) for metrics, data coverage, and the required next steps.
+
 The dataset and licensing record is in [docs/DATASET_AND_LICENSES.md](docs/DATASET_AND_LICENSES.md). The current model's prior evaluation report is [docs/model/Sign_Bridge_Model_Report.md](docs/model/Sign_Bridge_Model_Report.md); independent evaluation status and metric evidence are in [docs/MODEL_EVALUATION.md](docs/MODEL_EVALUATION.md).
 
 The app provides **isolated-word** recognition. To learn what a label's example looks like before rehearsing, run the local WLASL clip-index tool after obtaining the dataset:

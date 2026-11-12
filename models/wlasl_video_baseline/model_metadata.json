@@ -1,0 +1,30 @@
+{
+  "model": "sign_bridge_wlasl_video.tflite",
+  "task": "isolated WLASL gloss classification",
+  "input": [
+    1,
+    64,
+    180,
+    3
+  ],
+  "output": [
+    1,
+    973
+  ],
+  "output_semantics": "softmax gloss probabilities",
+  "labels_file": "labels.json",
+  "dataset": "WLASL2000",
+  "classes": 973,
+  "test_metrics": {
+    "samples": 1157,
+    "labels": 973,
+    "top1_accuracy": 0.036300777873811585,
+    "top5_accuracy": 0.1365600691443388,
+    "macro_precision": 0.018445651641951742,
+    "macro_recall": 0.036313806097978754,
+    "macro_f1": 0.02252483727303871
+  },
+  "split_policy": "Official NSLT split; signer-disjointness is not assumed.",
+  "preprocessing": "MediaPipe Holistic normalized image landmarks; right hand, left hand, pose indices 11..16, 132 selected face landmarks; per-frame wrist-center/max-absolute hand scale; resampled to 64 frames.",
+  "note": "Raw WLASL clip recognition is isolated-word recognition, not continuous sentence translation."
+}

@@ -1,0 +1,15 @@
+{
+  "input_shape": [
+    1,
+    64,
+    180,
+    3
+  ],
+  "output_shape": [
+    1,
+    973
+  ],
+  "max_absolute_error": 0.004108887165784836,
+  "mean_absolute_error": 3.8289032090688124e-05,
+  "top1_match": true
+}

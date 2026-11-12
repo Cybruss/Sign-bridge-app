@@ -1,0 +1,18 @@
+{
+  "id": "abdurrehmanzubair/sign-bridge-wlasl-video-pipeline",
+  "title": "Sign Bridge WLASL Video Pipeline",
+  "code_file": "sign_bridge_wlasl_video_pipeline.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "risangbaskoro/wlasl-processed",
+    "abdurrehmanzubair/sign-bridge-holistic-task-model"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}
