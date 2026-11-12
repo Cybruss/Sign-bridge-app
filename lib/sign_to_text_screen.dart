@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'services/native_landmarker_service.dart';
 import 'services/sign_bridge_inference.dart';
 import 'models/prediction.dart';
+import 'screens/asl_dictionary_screen.dart';
 
 // Segmentation tuning.
 const _minFramesForSign = 12; // ignore clips shorter than this
@@ -370,6 +371,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     if (model == null || _isPredicting || _frameBuffer.isEmpty) return;
 
     _isPredicting = true;
+    if (mounted) setState(() => _label = 'Recognizing…');
     // Snapshot + clear so new signing can start immediately.
     final clip = List<List<double>>.from(_frameBuffer);
     _frameBuffer.clear();
@@ -435,6 +437,52 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     _framesAbsent = 0;
   }
 
+  void _showQuickGuide() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Try one sign',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 14),
+              const _GuideStep(
+                number: '1',
+                text:
+                    'Keep your face and signing hand inside the camera frame.',
+              ),
+              const _GuideStep(
+                number: '2',
+                text:
+                    'Sign one word and hold it briefly. Lower your hand, or tap “Recognize now”.',
+              ),
+              const _GuideStep(
+                number: '3',
+                text:
+                    'Review the candidates. Tap “Add” only when the word looks right; edit the sentence anytime.',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This is an experimental isolated-word recognizer. Its similarity score is not a probability, and it can be wrong. Use the book icon to learn a sign from a video dictionary.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     final controller = _cameraController;
@@ -468,8 +516,22 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign → Text — Realtime'),
+        title: const Text('Sign to Text'),
         actions: [
+          IconButton(
+            tooltip: 'How to test a sign',
+            onPressed: _showQuickGuide,
+            icon: const Icon(Icons.help_outline_rounded),
+          ),
+          IconButton(
+            tooltip: 'Learn ASL signs by video',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AslDictionaryScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.menu_book_outlined),
+          ),
           IconButton(
             tooltip: _cameraRunning ? 'Pause camera' : 'Start camera',
             onPressed: _isSwitchingCamera ? null : _toggleCamera,
@@ -560,6 +622,58 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                             : (_isPredicting ? '⏳' : '◻️'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.tips_and_updates_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 19,
+                        ),
+                        const SizedBox(width: 9),
+                        const Expanded(
+                          child: Text(
+                            'Sign one word, then lower your hand—or recognize the captured sign now.',
+                            style: TextStyle(fontSize: 12, height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed:
+                          _model != null &&
+                              !_isPredicting &&
+                              _frameBuffer.length >= _minFramesForSign
+                          ? _runPrediction
+                          : null,
+                      icon: _isPredicting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.center_focus_strong_rounded),
+                      label: Text(
+                        _isPredicting
+                            ? 'Recognizing…'
+                            : 'Recognize now · ${_frameBuffer.length} frames',
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -669,6 +783,34 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideStep extends StatelessWidget {
+  const _GuideStep({required this.number, required this.text});
+
+  final String number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 13,
+            backgroundColor: color.withValues(alpha: .12),
+            foregroundColor: color,
+            child: Text(number, style: const TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: const TextStyle(height: 1.35))),
         ],
       ),
     );
