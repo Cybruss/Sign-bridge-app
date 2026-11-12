@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -26,14 +24,15 @@ class NativeFrameResult {
 
   /// Hands for the overlay painter (each 63 long), primary first.
   List<List<double>> get overlayHands => [
-        if (rightHand != null) rightHand!,
-        if (leftHand != null) leftHand!,
-      ];
+    if (rightHand != null) rightHand!,
+    if (leftHand != null) leftHand!,
+  ];
 }
 
 class NativeLandmarkerService {
-  static const MethodChannel _channel =
-      MethodChannel('com.example.sign_bridge/landmarker');
+  static const MethodChannel _channel = MethodChannel(
+    'com.example.sign_bridge/landmarker',
+  );
   bool _busy = false;
 
   Future<bool> isAvailable() async {
@@ -69,8 +68,10 @@ class NativeLandmarkerService {
         'vPixelStride': image.planes[2].bytesPerPixel ?? 1,
       };
 
-      final response =
-          await _channel.invokeMethod<Map<dynamic, dynamic>>('processFrame', args);
+      final response = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'processFrame',
+        args,
+      );
       if (response == null || response.isEmpty) return null;
 
       return NativeFrameResult(
@@ -80,7 +81,9 @@ class NativeLandmarkerService {
         leftHand: _toDoubles(response['leftHand']),
       );
     } on PlatformException catch (e) {
-      debugPrint('NativeLandmarkerService.processFrame platform error: ${e.message}');
+      debugPrint(
+        'NativeLandmarkerService.processFrame platform error: ${e.message}',
+      );
       return null;
     } catch (e) {
       debugPrint('NativeLandmarkerService.processFrame error: $e');

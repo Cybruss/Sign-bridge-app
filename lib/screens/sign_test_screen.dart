@@ -33,7 +33,10 @@ class _SignTestScreenState extends State<SignTestScreen> {
   Future<void> _runDummy() async {
     if (_svc == null) return;
     setState(() => _status = 'Running inference on zero input...');
-    final frames = List.generate(64, (_) => List.generate(180, (_) => [0.0, 0.0, 0.0]));
+    final frames = List.generate(
+      64,
+      (_) => List.generate(180, (_) => [0.0, 0.0, 0.0]),
+    );
     final res = _svc!.predict(frames);
     setState(() {
       _preds = res;
@@ -57,7 +60,10 @@ class _SignTestScreenState extends State<SignTestScreen> {
           children: [
             Text('Status: $_status'),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: _runDummy, child: const Text('Run dummy inference')),
+            ElevatedButton(
+              onPressed: _runDummy,
+              child: const Text('Run dummy inference'),
+            ),
             const SizedBox(height: 12),
             Expanded(
               child: ListView.builder(
@@ -67,7 +73,9 @@ class _SignTestScreenState extends State<SignTestScreen> {
                   return ListTile(
                     title: Text(p.word),
                     subtitle: LinearProgressIndicator(value: p.confidence),
-                    trailing: Text((p.confidence * 100).toStringAsFixed(1) + '%'),
+                    trailing: Text(
+                      '${(p.confidence * 100).toStringAsFixed(1)}%',
+                    ),
                   );
                 },
               ),

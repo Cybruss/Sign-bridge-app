@@ -31,24 +31,71 @@ class SignBridgeInference {
 
     // Load via bytes so asset-path packaging quirks don't bite us.
     final modelBytes = await rootBundle.load(modelAsset);
-    final interpreter =
-        Interpreter.fromBuffer(modelBytes.buffer.asUint8List(), options: options);
+    final interpreter = Interpreter.fromBuffer(
+      modelBytes.buffer.asUint8List(
+        modelBytes.offsetInBytes,
+        modelBytes.lengthInBytes,
+      ),
+      options: options,
+    );
 
-    final jsonStr = await rootBundle.loadString(labelsAsset);
-    final parsed = json.decode(jsonStr) as Map<String, dynamic>;
-    final names = List<String>.from(parsed['names'] as List);
-    final vectors = (parsed['vectors'] as List)
-        .map<List<double>>(
-            (e) => (e as List).map((x) => (x as num).toDouble()).toList())
-        .toList();
+    try {
+      final inputShape = interpreter.getInputTensor(0).shape;
+      final outputShape = interpreter.getOutputTensor(0).shape;
+      if (!_sameShape(inputShape, const [1, _frames, _landmarks, _coords])) {
+        throw StateError('Unexpected TFLite input shape: $inputShape');
+      }
+      if (!_sameShape(outputShape, const [1, _outputDim])) {
+        throw StateError('Unexpected TFLite output shape: $outputShape');
+      }
 
-    return SignBridgeInference._(interpreter, names, vectors);
+      final jsonStr = await rootBundle.loadString(labelsAsset);
+      final parsed = json.decode(jsonStr) as Map<String, dynamic>;
+      final names = List<String>.from(parsed['names'] as List);
+      final vectors = (parsed['vectors'] as List)
+          .map<List<double>>(
+            (e) => (e as List).map((x) => (x as num).toDouble()).toList(),
+          )
+          .toList();
+
+      if (names.isEmpty || names.length != vectors.length) {
+        throw StateError(
+          'Label names and embedding vectors must have equal nonzero lengths.',
+        );
+      }
+      if (names.any((name) => name.trim().isEmpty) ||
+          names.toSet().length != names.length) {
+        throw StateError('Label names must be nonempty and unique.');
+      }
+      for (var i = 0; i < vectors.length; i++) {
+        if (vectors[i].length != _outputDim ||
+            vectors[i].any((value) => !value.isFinite)) {
+          throw StateError(
+            'Label embedding ${names[i]} must contain $_outputDim finite values.',
+          );
+        }
+      }
+
+      return SignBridgeInference._(interpreter, names, vectors);
+    } catch (_) {
+      interpreter.close();
+      rethrow;
+    }
   }
+
+  static bool _sameShape(List<int> actual, List<int> expected) =>
+      actual.length == expected.length &&
+      List.generate(
+        actual.length,
+        (i) => actual[i] == expected[i],
+      ).every((same) => same);
 
   /// [landmarks] is [frames][180][3] (any frame count; resized to 64 internally).
   /// Returns the top-3 predicted words with cosine-similarity confidence.
   List<Prediction> predict(List<List<List<double>>> landmarks) {
-    final flat = LandmarkPreprocessor.preprocess(landmarks); // Float32List 64*180*3
+    final flat = LandmarkPreprocessor.preprocess(
+      landmarks,
+    ); // Float32List 64*180*3
 
     // Reshape flat buffer into the [1,64,180,3] nested structure tflite_flutter wants.
     var i = 0;

@@ -10,10 +10,13 @@ class LandmarkPreprocessor {
     for (var f = 0; f < frames; f++) {
       final frame = rawFrames[f];
       // make a deep copy of shape [180][3]
-      final copy = List<List<double>>.generate(180, (i) => List<double>.filled(3, 0.0));
+      final copy = List<List<double>>.generate(
+        180,
+        (i) => List<double>.filled(3, 0.0),
+      );
       for (var i = 0; i < 180 && i < frame.length; i++) {
         final lm = frame[i];
-        copy[i][0] = lm.length > 0 ? lm[0] : 0.0;
+        copy[i][0] = lm.isNotEmpty ? lm[0] : 0.0;
         copy[i][1] = lm.length > 1 ? lm[1] : 0.0;
         copy[i][2] = lm.length > 2 ? lm[2] : 0.0;
       }
@@ -67,10 +70,16 @@ class LandmarkPreprocessor {
     }
   }
 
-  static List<List<List<double>>> _interpolateFrames(List<List<List<double>>> frames, int target) {
+  static List<List<List<double>>> _interpolateFrames(
+    List<List<List<double>>> frames,
+    int target,
+  ) {
     final n = frames.length;
     if (n == target) return frames;
-    final out = List<List<List<double>>>.generate(target, (_) => List.generate(180, (_) => [0.0, 0.0, 0.0]));
+    final out = List<List<List<double>>>.generate(
+      target,
+      (_) => List.generate(180, (_) => [0.0, 0.0, 0.0]),
+    );
     if (n == 0) return out;
     for (var t = 0; t < target; t++) {
       final pos = t * (n - 1) / (target - 1);

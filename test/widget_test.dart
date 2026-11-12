@@ -5,16 +5,18 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sign_bridge/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Home screen renders the Sign to Text entry point', (
+    WidgetTester tester,
+  ) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const SignBridgeApp());
     // Verify HomeScreen contains app title
-    expect(find.text('Sign Bridge'), findsOneWidget);
+    expect(find.text('Sign to Text'), findsOneWidget);
+    expect(find.text('Rylo Translate · online'), findsOneWidget);
   });
 }

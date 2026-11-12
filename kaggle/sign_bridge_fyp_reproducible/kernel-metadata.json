@@ -1,0 +1,18 @@
+{
+  "id": "abdurrehmanzubair/sign-bridge-fyp-reproducible",
+  "title": "Sign Bridge FYP Reproducible",
+  "code_file": "sign_bridge_fyp_reproducible.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": [
+    "abd0kamel/mutemotion-output",
+    "abdurrehmanzubair/signbridge-checkpoint-v2"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}

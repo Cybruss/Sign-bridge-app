@@ -51,3 +51,13 @@ app.*.map.json
 # Local flutter run logs captured to files
 /output.txt
 /[0-9]*output.txt
+
+# Local credentials, environment files, and generated training data
+.env
+.env.*
+!.env.example
+.kaggle/
+data/raw/
+data/processed/
+artifacts/
+assets/sign_bridge_export/

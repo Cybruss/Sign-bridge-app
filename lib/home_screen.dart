@@ -1,131 +1,336 @@
 import 'package:flutter/material.dart';
-import 'sign_to_text_screen.dart';
+
 import 'screens/avatar_pipeline_screen.dart';
-// in HomeScreen._buildFeatureButton add a button pointing to SignTestScreen()
+import 'screens/rylo_translate_screen.dart';
 import 'screens/sign_test_screen.dart';
+import 'sign_to_text_screen.dart';
+import 'text_to_sign_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  void _open(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home Screen'),
-        backgroundColor: Colors.blue[700],
-        elevation: 0,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue[700]!, const Color.fromARGB(255, 201, 201, 201)],
-          ),
+        titleSpacing: 20,
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.sign_language, color: colors.primary, size: 22),
+            ),
+            const SizedBox(width: 11),
+            const Text(
+              'Sign Bridge',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // App Logo/Icon
-              const Icon(
-                Icons.accessible_forward,
-                size: 100,
-                color: Colors.white,
-              ),
-              const SizedBox(height: 30),
-              
-              // App Title
-              const Text(
-                'Sign Bridge',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Bridging Communication Gap',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 50),
-              
-              // Feature Buttons
-              _buildFeatureButton(
-                context,
-                'Text to Sign',
-                Icons.text_fields,
-                Colors.green,
-                AvatarPipelineScreen(),
-              ),
-              const SizedBox(height: 20),
-              _buildFeatureButton(
-                context,
-                'Sign to Text',
-                Icons.camera_alt,
-                Colors.orange,
-                SignToTextScreen(),
-              ),
-              const SizedBox(height: 20),
-              _buildFeatureButton(
-                context,
-                'Sign Test',
-                Icons.check_circle,
-                Colors.blue,
-                SignTestScreen(),
-              ),
-            ],
+        actions: [
+          IconButton(
+            tooltip: 'Model check',
+            onPressed: () => _open(context, const SignTestScreen()),
+            icon: const Icon(Icons.info_outline_rounded),
           ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(22, 22, 20, 22),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [colors.primary, const Color(0xFF173B54)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colors.primary.withValues(alpha: .16),
+                    blurRadius: 22,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Text(
+                      'SIGN LANGUAGE • PROJECT DEMO',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Communication,\nmade more accessible.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 27,
+                      height: 1.14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Explore sign recognition and visual sign demos.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: .78),
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 19),
+                  FilledButton.icon(
+                    onPressed: () => _open(context, SignToTextScreen()),
+                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                    label: const Text('Start sign recognition'),
+                    style: FilledButton.styleFrom(
+                      foregroundColor: colors.primary,
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 25),
+            const _SectionTitle(
+              title: 'Explore the prototype',
+              subtitle: 'Choose a direction to get started',
+            ),
+            const SizedBox(height: 13),
+            _FeatureCard(
+              icon: Icons.videocam_outlined,
+              title: 'Sign to text',
+              subtitle: 'Use the camera to recognize isolated words',
+              tag: 'ON DEVICE',
+              color: const Color(0xFF147D78),
+              onTap: () => _open(context, SignToTextScreen()),
+            ),
+            const SizedBox(height: 10),
+            _FeatureCard(
+              icon: Icons.accessibility_new_rounded,
+              title: 'Text to sign · avatar',
+              subtitle: 'Play available word animations',
+              tag: 'LOCAL DEMO',
+              color: const Color(0xFF4962A8),
+              onTap: () => _open(context, AvatarPipelineScreen()),
+            ),
+            const SizedBox(height: 10),
+            _FeatureCard(
+              icon: Icons.animation_rounded,
+              title: 'SiGML sign examples',
+              subtitle: 'View a small set of prepared avatar phrases',
+              tag: 'LOCAL DEMO',
+              color: const Color(0xFF8D5C32),
+              onTap: () => _open(context, const TextToSignScreen()),
+            ),
+            const SizedBox(height: 10),
+            _FeatureCard(
+              icon: Icons.language_rounded,
+              title: 'Online text-to-sign',
+              subtitle: 'Open the Rylo hosted translation page',
+              tag: 'INTERNET',
+              color: const Color(0xFF7052A1),
+              onTap: () => _open(context, const RyloTranslateScreen()),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: colors.outlineVariant.withValues(alpha: .65),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline_rounded,
+                    color: colors.primary,
+                    size: 21,
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      'Demo note: recognition covers isolated words. The avatar and online options are limited demonstrations, not full sentence translation.',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _open(context, const SignTestScreen()),
+                icon: const Icon(Icons.fact_check_outlined, size: 17),
+                label: const Text('Model diagnostics'),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildFeatureButton(
-    BuildContext context,
-    String title,
-    IconData icon,
-    Color color,
-    Widget screen,
-  ) {
-    return SizedBox(
-      width: 250,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 13,
           ),
         ),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => screen),
-          );
-        },
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 24),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+      ],
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  const _FeatureCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.tag,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String tag;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: .7),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color, size: 23),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          tag,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 9,
+                            letterSpacing: .55,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );

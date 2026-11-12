@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
   final TextEditingController _textController = TextEditingController();
 
   WebViewController? _webController;
+  HttpServer? _assetServer;
   bool _avatarReady = false;
   bool _lexiconReady = false;
   bool _webViewReady = false;
@@ -35,8 +37,19 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
   }
 
   Future<void> _initWebView() async {
-    const playerUrl =
-        'https://appassets.androidplatform.net/assets/flutter_assets/jas/loc2025/cwa/flutter_player.html';
+    if (!Platform.isAndroid) {
+      if (mounted) {
+        setState(
+          () =>
+              _status = 'The bundled SiGML player currently requires Android.',
+        );
+      }
+      return;
+    }
+
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    _assetServer = server;
+    server.listen(_serveBundledAsset);
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -90,11 +103,71 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
         ),
       );
 
-    await controller.loadRequest(Uri.parse(playerUrl));
+    await controller.loadRequest(
+      Uri.parse(
+        'http://127.0.0.1:${server.port}/jas/loc2025/cwa/flutter_player.html',
+      ),
+    );
     if (!mounted) return;
     setState(() {
       _webController = controller;
     });
+  }
+
+  Future<void> _serveBundledAsset(HttpRequest request) async {
+    final segments = request.uri.pathSegments;
+    final assetPath = segments.join('/');
+    if ((request.method != 'GET' && request.method != 'HEAD') ||
+        segments.contains('..') ||
+        !assetPath.startsWith('jas/loc2025/')) {
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+      return;
+    }
+
+    try {
+      final data = await rootBundle.load(assetPath);
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      request.response.headers.contentLength = bytes.length;
+      request.response.headers.contentType = _contentType(assetPath);
+      if (request.method == 'GET') request.response.add(bytes);
+      await request.response.close();
+    } catch (error) {
+      debugPrint('Bundled SiGML asset not found: $assetPath ($error)');
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
+    }
+  }
+
+  ContentType _contentType(String path) {
+    if (path.endsWith('.html')) {
+      return ContentType.html;
+    }
+    if (path.endsWith('.js')) {
+      return ContentType('application', 'javascript');
+    }
+    if (path.endsWith('.css')) {
+      return ContentType('text', 'css');
+    }
+    if (path.endsWith('.json')) {
+      return ContentType.json;
+    }
+    if (path.endsWith('.sigml') || path.endsWith('.xml')) {
+      return ContentType('application', 'xml');
+    }
+    if (path.endsWith('.jar')) {
+      return ContentType('application', 'java-archive');
+    }
+    if (path.endsWith('.vert') || path.endsWith('.frag')) {
+      return ContentType('text', 'plain');
+    }
+    if (path.endsWith('.png')) {
+      return ContentType('image', 'png');
+    }
+    return ContentType.binary;
   }
 
   Future<void> _loadLexicon() async {
@@ -186,7 +259,8 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
         _missingTokens = missing;
         _hamnosysPreview = '';
         _sigmlPreview = '';
-        _status = 'No matching signs found in current lexicon. Try: welcome, here, i, take, mug, scotland.';
+        _status =
+            'No matching signs found in current lexicon. Try: welcome, here, i, take, mug, scotland.';
       });
       return;
     }
@@ -296,104 +370,121 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-            TextField(
-              controller: _textController,
-              decoration: InputDecoration(
-                labelText: 'Enter text (example: I take mug)',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _textController.clear();
-                    setState(() {
-                      _hamnosysPreview = '';
-                      _sigmlPreview = '';
-                      _missingTokens = <String>[];
-                      _status = 'Cleared.';
-                    });
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _convertAndPlay,
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Convert + Play'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _stopAvatar,
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Stop Avatar'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                _status,
-                style: TextStyle(
-                  color: _status.toLowerCase().contains('error') ? Colors.red : Colors.black87,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            if (_missingTokens.isNotEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
+              const Card(
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: EdgeInsets.all(12),
                   child: Text(
-                    'Missing tokens in current lexicon: ${_missingTokens.join(', ')}',
-                    style: const TextStyle(color: Colors.orange, fontSize: 12),
+                    'Experimental local demo: this bundled lexicon contains a '
+                    'few NGT examples. It matches known words and joins their '
+                    'SiGML blocks; it does not translate English grammar or '
+                    'produce ASL. Try “welcome”, “I take mug”, or “Scotland”.',
                   ),
                 ),
               ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 360,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: _webController == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : WebViewWidget(controller: _webController!),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _textController,
+                decoration: InputDecoration(
+                  labelText: 'Enter text (example: I take mug)',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _textController.clear();
+                      setState(() {
+                        _hamnosysPreview = '';
+                        _sigmlPreview = '';
+                        _missingTokens = <String>[];
+                        _status = 'Cleared.';
+                      });
+                    },
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 260,
-              child: Row(
+              const SizedBox(height: 10),
+              Row(
                 children: [
                   Expanded(
-                    child: _buildPreviewPanel(
-                      title: 'HamNoSys Trace',
-                      content: _hamnosysPreview.isEmpty
-                          ? 'Converted HamNoSys tags will appear here.'
-                          : _hamnosysPreview,
+                    child: ElevatedButton.icon(
+                      onPressed: _convertAndPlay,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Convert + Play'),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _buildPreviewPanel(
-                      title: 'Generated SiGML',
-                      content: _sigmlPreview.isEmpty
-                          ? 'Generated SiGML will appear here.'
-                          : _sigmlPreview,
+                    child: OutlinedButton.icon(
+                      onPressed: _stopAvatar,
+                      icon: const Icon(Icons.stop),
+                      label: const Text('Stop Avatar'),
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _status,
+                  style: TextStyle(
+                    color: _status.toLowerCase().contains('error')
+                        ? Colors.red
+                        : Colors.black87,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (_missingTokens.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Missing tokens in current lexicon: ${_missingTokens.join(', ')}',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 360,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: _webController == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : WebViewWidget(controller: _webController!),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 260,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildPreviewPanel(
+                        title: 'HamNoSys Trace',
+                        content: _hamnosysPreview.isEmpty
+                            ? 'Converted HamNoSys tags will appear here.'
+                            : _hamnosysPreview,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildPreviewPanel(
+                        title: 'Generated SiGML',
+                        content: _sigmlPreview.isEmpty
+                            ? 'Generated SiGML will appear here.'
+                            : _sigmlPreview,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -409,10 +500,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
       ),
       child: ListView(
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           SelectableText(
             content,
@@ -426,6 +514,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
   @override
   void dispose() {
     _textController.dispose();
+    _assetServer?.close(force: true);
     super.dispose();
   }
 }

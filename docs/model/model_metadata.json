@@ -1,0 +1,130 @@
+{
+  "metadata_version": 1,
+  "model_name": "SignBridge_GRU",
+  "task": "isolated_word_asl_recognition",
+  "limitations": [
+    "This is a word-level isolated sign recognizer, not continuous ASL sentence translation.",
+    "Output similarity is not a calibrated probability.",
+    "Training results are project-reported; held-out top-k figures were not independently reproduced in this audit."
+  ],
+  "architecture": {
+    "type": "Bidirectional GRU temporal encoder with attention pooling",
+    "output": "300-dimensional L2-normalized FastText semantic embedding",
+    "retrieval": "Cosine similarity against labels.json vectors"
+  },
+  "artifact": {
+    "model_path": "assets/ml/sign_bridge.tflite",
+    "model_size_bytes": 3016600,
+    "model_sha256": "6f6daaae1577be83476f039c75197f326e0ce4eee6cb3ff6b410ea8849995960",
+    "labels_path": "assets/ml/labels.json",
+    "labels_sha256": "0b01299cb9f04b4ad109368ec06d5c3b5b86a6d6049dff30a11d799b2e14f3e0",
+    "label_count": 351,
+    "embedding_dimension": 300
+  },
+  "input": {
+    "tensor_shape": [
+      1,
+      64,
+      180,
+      3
+    ],
+    "dtype": "float32",
+    "feature_schema": "signbridge.landmarks180.xyz.v1",
+    "temporal_length_frames": 64
+  },
+  "feature_schema": {
+    "per_frame_shape": [
+      180,
+      3
+    ],
+    "coordinate_order": [
+      "x",
+      "y",
+      "z"
+    ],
+    "landmark_order": [
+      {
+        "name": "right_hand",
+        "count": 21,
+        "indices": "MediaPipe right hand 0-20"
+      },
+      {
+        "name": "left_hand",
+        "count": 21,
+        "indices": "MediaPipe left hand 0-20"
+      },
+      {
+        "name": "upper_body_pose",
+        "count": 6,
+        "indices": [
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ]
+      },
+      {
+        "name": "face_subset",
+        "count": 132,
+        "indices": "FACE_INDICES listed in HolisticLandmarkerProcessor.kt"
+      }
+    ],
+    "preprocessing": {
+      "hand_normalization": "Each hand is wrist-centered and scaled by its maximum absolute XYZ span.",
+      "temporal_resampling": "Linear interpolation to 64 frames.",
+      "missing_landmarks": "Zero-filled; current app face mesh may not provide indices 468 and 473 used during training.",
+      "runtime_implementation": "lib/utils/landmark_preprocessor.dart"
+    }
+  },
+  "training_provenance": {
+    "source": "MuteMotion WLASL derived landmark dataset, Kaggle dataset abd0kamel/mutemotion-output",
+    "eligible_samples_by_official_split": {
+      "train": 2770,
+      "val": 748,
+      "test": 560
+    },
+    "classes": 351,
+    "discarded_archive_entries": 17005,
+    "split": "Official split field in WLASL_parsed_data.json; signer-disjointness not verified.",
+    "training_run": "Private Kaggle kernel abdurrehmanzubair/sign-bridge-fyp-reproducible, version 1; 80 epochs, Tesla T4 x2.",
+    "initial_checkpoint": "Private Kaggle dataset abdurrehmanzubair/signbridge-checkpoint-v2; license metadata unknown; weights-only checkpoint used to initialize fine-tuning.",
+    "license_note": "Do not redistribute the fine-tuned model/checkpoint pending confirmation of rights for the source checkpoint and compliance with WLASL C-UDA.",
+    "training_code": "scripts/train_sign_bridge.py; generated notebook kaggle/sign_bridge_fyp_reproducible/sign_bridge_fyp_reproducible.ipynb",
+    "artifact_evidence": "artifacts/kaggle_run_2026-10-18 (gitignored local outputs; no raw feature cache or dataset copied)."
+  },
+  "runtime": {
+    "mobile_runtime": "Flutter tflite_flutter",
+    "platform_status": "Android native camera/Holistic bridge; iOS camera-to-model integration is not implemented.",
+    "auto_append_similarity_threshold": 0.25,
+    "verification": "Official held-out WLASL feature split, TFLite synthetic smoke test, and Pixel 6 Pro camera/Holistic path; a labeled user-signed real-world accuracy check remains outstanding."
+  },
+  "evaluation": {
+    "test_samples": 560,
+    "label_coverage": 1.0,
+    "top1_accuracy": 0.2625,
+    "top5_accuracy": 0.4089285714285714,
+    "macro_precision": 0.19527823000045225,
+    "macro_recall": 0.23148148148148148,
+    "macro_f1": 0.19407095965361548,
+    "evaluation_source": "Keras best checkpoint on official test partition; outputs in artifacts/kaggle_run_2026-10-18."
+  },
+  "export_validation": {
+    "input_shape": [
+      1,
+      64,
+      180,
+      3
+    ],
+    "output_shape": [
+      1,
+      300
+    ],
+    "max_abs_error": 0.001082688570022583,
+    "tflite_size_bytes": 3016600,
+    "cpu_latency_median_ms": 9.653584999796294,
+    "cpu_latency_p95_ms": 9.935122699289423,
+    "device": "Kaggle CPU XNNPACK for export benchmark; not phone end-to-end latency."
+  }
+}

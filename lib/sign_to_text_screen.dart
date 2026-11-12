@@ -20,7 +20,6 @@ import 'models/prediction.dart';
 const _minFramesForSign = 12; // ignore clips shorter than this
 const _maxFramesBuffer = 96; // cap buffer length (~a few seconds)
 const _framesAbsentToPredict = 6; // hand gone this many frames => sign ended
-const _appendThreshold = 0.25; // min cosine sim to append a word to the sentence
 
 /// Overlay painter for hand landmarks (21 points each).
 class LandmarksPainter extends CustomPainter {
@@ -88,9 +87,12 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   List<CameraDescription>? _cameras;
   CameraDescription? _activeCamera;
   bool _isSwitchingCamera = false;
+  bool _cameraRunning = false;
+  String _cameraStatus = 'Starting camera…';
 
   final NativeLandmarkerService _nativeLandmarker = NativeLandmarkerService();
   bool _nativeReady = false;
+  String _landmarkerStatus = 'Starting Holistic processor…';
   bool _isProcessingFrame = false;
 
   SignBridgeInference? _model;
@@ -108,6 +110,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   double _confidence = 0.0;
   List<Prediction> _topPreds = const [];
   String _sentence = '';
+  final TextEditingController _sentenceController = TextEditingController();
 
   @override
   void initState() {
@@ -125,7 +128,9 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     try {
       _model = await SignBridgeInference.create();
       if (!mounted) return;
-      setState(() => _modelStatus = 'Model ready (${_model!.names.length} words)');
+      setState(
+        () => _modelStatus = 'Model ready (${_model!.names.length} words)',
+      );
     } catch (e) {
       debugPrint('Failed to load Sign Bridge model: $e');
       if (!mounted) return;
@@ -136,10 +141,16 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   Future<void> _initNativeLandmarker() async {
     try {
       _nativeReady = await _nativeLandmarker.isAvailable();
+      _landmarkerStatus = _nativeReady
+          ? 'Holistic processor ready'
+          : 'Holistic processor unavailable; recognition is disabled';
       debugPrint('Native holistic landmarker available: $_nativeReady');
+      if (mounted) setState(() {});
     } catch (e) {
       _nativeReady = false;
+      _landmarkerStatus = 'Holistic processor failed to initialize';
       debugPrint('Native landmarker init failed: $e');
+      if (mounted) setState(() {});
     }
   }
 
@@ -148,6 +159,11 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
         debugPrint('No cameras available');
+        if (mounted) {
+          setState(
+            () => _cameraStatus = 'No camera is available on this device.',
+          );
+        }
         return;
       }
       final cam = _cameras!.firstWhere(
@@ -157,6 +173,13 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       await _startCamera(cam);
     } catch (e) {
       debugPrint('Camera init error: $e');
+      if (!mounted) return;
+      final denied = e.toString().toLowerCase().contains('denied');
+      setState(
+        () => _cameraStatus = denied
+            ? 'Camera permission was denied. Enable camera access in system settings.'
+            : 'Camera unavailable. Check camera permission and device status.',
+      );
     }
   }
 
@@ -192,7 +215,55 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     setState(() {
       _activeCamera = cam;
       _cameraController = controller;
+      _cameraRunning = true;
+      _cameraStatus = 'Camera running';
     });
+  }
+
+  Future<void> _stopCamera() async {
+    final controller = _cameraController;
+    if (controller == null || !_cameraRunning) return;
+    try {
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
+      _resetBuffer();
+      if (mounted) {
+        setState(() {
+          _cameraRunning = false;
+          _cameraStatus = 'Camera paused';
+          _lastHands = const [];
+          _handDetected = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _cameraStatus = 'Could not stop camera: $e');
+    }
+  }
+
+  Future<void> _toggleCamera() async {
+    if (_cameraRunning) {
+      await _stopCamera();
+      return;
+    }
+    final controller = _cameraController;
+    if (controller?.value.isInitialized == true) {
+      try {
+        await controller!.startImageStream(_onCameraImage);
+        if (mounted) {
+          setState(() {
+            _cameraRunning = true;
+            _cameraStatus = 'Camera running';
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _cameraStatus = 'Could not start camera: $e');
+        }
+      }
+      return;
+    }
+    await _initCamera();
   }
 
   Future<void> _switchCamera() async {
@@ -201,7 +272,9 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
 
     final current = _activeCamera;
     final currentIndex = cameras.indexWhere((c) => c.name == current?.name);
-    final nextIndex = currentIndex == -1 ? 0 : (currentIndex + 1) % cameras.length;
+    final nextIndex = currentIndex == -1
+        ? 0
+        : (currentIndex + 1) % cameras.length;
 
     setState(() => _isSwitchingCamera = true);
     try {
@@ -209,6 +282,12 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       await _startCamera(cameras[nextIndex]);
     } catch (e) {
       debugPrint('Camera switch error: $e');
+      if (mounted) {
+        setState(
+          () => _cameraStatus =
+              'Camera switch failed. Try restarting the camera.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSwitchingCamera = false);
     }
@@ -228,7 +307,8 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       final frame = await _nativeLandmarker.processFrame(
         image,
         rotationDegrees: _rotationDegrees(),
-        isFrontCamera: _activeCamera?.lensDirection == CameraLensDirection.front,
+        isFrontCamera:
+            _activeCamera?.lensDirection == CameraLensDirection.front,
       );
       if (frame == null) return;
       _handleFrame(frame);
@@ -298,10 +378,12 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     try {
       // Reshape each flat 540 frame into [180][3].
       final landmarks = clip
-          .map((flat) => List.generate(
-                180,
-                (l) => [flat[l * 3], flat[l * 3 + 1], flat[l * 3 + 2]],
-              ))
+          .map(
+            (flat) => List.generate(
+              180,
+              (l) => [flat[l * 3], flat[l * 3 + 1], flat[l * 3 + 2]],
+            ),
+          )
           .toList();
 
       final preds = model.predict(landmarks);
@@ -311,9 +393,6 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
         if (preds.isNotEmpty) {
           _label = preds.first.word;
           _confidence = preds.first.confidence;
-          if (preds.first.confidence >= _appendThreshold) {
-            _appendWord(preds.first.word);
-          }
         }
       });
     } catch (e) {
@@ -325,10 +404,30 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   }
 
   void _appendWord(String word) {
-    // Avoid repeating the same word twice in a row.
-    final trimmed = _sentence.trimRight();
-    if (trimmed.endsWith(word)) return;
-    _sentence = _sentence.isEmpty ? word : '$_sentence $word';
+    final words = _sentence.trim().split(RegExp(r'\s+'));
+    if (words.isNotEmpty && words.last.toLowerCase() == word.toLowerCase()) {
+      return;
+    }
+    final next = _sentence.trim().isEmpty ? word : '${_sentence.trim()} $word';
+    _sentenceController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    _sentence = next;
+  }
+
+  void _acceptTopPrediction() {
+    if (_topPreds.isEmpty) return;
+    setState(() => _appendWord(_topPreds.first.word));
+  }
+
+  void _removeLastWord() {
+    final words = _sentence.trim().split(RegExp(r'\s+'));
+    if (words.isEmpty || words.first.isEmpty) return;
+    words.removeLast();
+    final next = words.join(' ');
+    _sentenceController.text = next;
+    setState(() => _sentence = next);
   }
 
   void _resetBuffer() {
@@ -345,6 +444,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     _cameraController?.dispose();
     _nativeLandmarker.dispose();
     _model?.dispose();
+    _sentenceController.dispose();
     super.dispose();
   }
 
@@ -352,12 +452,29 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   Widget build(BuildContext context) {
     final preview = _cameraController?.value.isInitialized == true
         ? CameraPreview(_cameraController!)
-        : const Center(child: CircularProgressIndicator());
+        : Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(_cameraStatus, textAlign: TextAlign.center),
+                ),
+              ],
+            ),
+          );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign → Text — Realtime'),
         actions: [
+          IconButton(
+            tooltip: _cameraRunning ? 'Pause camera' : 'Start camera',
+            onPressed: _isSwitchingCamera ? null : _toggleCamera,
+            icon: Icon(_cameraRunning ? Icons.pause_circle : Icons.play_circle),
+          ),
           IconButton(
             tooltip: 'Switch camera',
             onPressed: (_cameras?.length ?? 0) > 1 && !_isSwitchingCamera
@@ -387,8 +504,31 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                       child: CustomPaint(
                         painter: LandmarksPainter(
                           hands: _lastHands,
-                          mirror: _activeCamera?.lensDirection ==
+                          mirror:
+                              _activeCamera?.lensDirection ==
                               CameraLensDirection.front,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (!_cameraRunning &&
+                    _cameraController?.value.isInitialized == true)
+                  Positioned(
+                    left: 12,
+                    top: 12,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        child: Text(
+                          _cameraStatus,
+                          style: const TextStyle(color: Colors.white),
                         ),
                       ),
                     ),
@@ -398,9 +538,10 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
           ),
           Expanded(
             flex: 2,
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Row(
@@ -408,29 +549,48 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                     children: [
                       Flexible(
                         child: Text(
-                          _nativeReady ? _modelStatus : 'Starting native processor…',
+                          '$_landmarkerStatus · $_modelStatus · $_cameraStatus',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Text(_handDetected
-                          ? '🤚 ${_frameBuffer.length}'
-                          : (_isPredicting ? '⏳' : '◻️')),
+                      Text(
+                        _handDetected
+                            ? '🤚 ${_frameBuffer.length}'
+                            : (_isPredicting ? '⏳' : '◻️'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(_label,
-                      style: const TextStyle(
-                          fontSize: 28, fontWeight: FontWeight.bold)),
+                  Text(
+                    _label,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (_topPreds.isNotEmpty)
+                    Tooltip(
+                      message: 'Add the top prediction to the sentence',
+                      child: TextButton.icon(
+                        onPressed: _acceptTopPrediction,
+                        icon: const Icon(Icons.add),
+                        label: Text('Add “${_topPreds.first.word}”'),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   LinearProgressIndicator(
-                      value: _confidence.clamp(0.0, 1.0), minHeight: 10),
+                    value: _confidence.clamp(0.0, 1.0),
+                    minHeight: 10,
+                  ),
                   const SizedBox(height: 4),
-                  Text('${(_confidence * 100).toStringAsFixed(1)}% match'),
+                  Text(
+                    'Cosine similarity: ${_confidence.toStringAsFixed(3)} (not a calibrated probability)',
+                  ),
                   if (_topPreds.length > 1) ...[
                     const SizedBox(height: 6),
                     Text(
-                      'also: ${_topPreds.skip(1).map((p) => '${p.word} (${(p.confidence * 100).toStringAsFixed(0)}%)').join(', ')}',
+                      'also: ${_topPreds.skip(1).map((p) => '${p.word} (cos ${p.confidence.toStringAsFixed(2)})').join(', ')}',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
@@ -438,9 +598,13 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                   const Divider(),
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Sentence:',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'Sentence:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Container(
@@ -451,27 +615,55 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.blue.shade200),
                     ),
-                    child: Text(
-                      _sentence.isEmpty ? 'Sign a word…' : _sentence,
+                    child: TextField(
+                      controller: _sentenceController,
+                      minLines: 1,
+                      maxLines: 3,
+                      onChanged: (value) => setState(() => _sentence = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Sign a word… or edit recognized text',
+                        border: InputBorder.none,
+                      ),
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _resetBuffer();
-                        _lastHands = const [];
-                        _label = 'Ready';
-                        _confidence = 0.0;
-                        _topPreds = const [];
-                        _sentence = '';
-                        _handDetected = false;
-                      });
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reset'),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _removeLastWord,
+                        icon: const Icon(Icons.backspace_outlined),
+                        label: const Text('Undo last word'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          _sentenceController.clear();
+                          setState(() => _sentence = '');
+                        },
+                        icon: const Icon(Icons.clear),
+                        label: const Text('Clear text'),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _sentenceController.clear();
+                          setState(() {
+                            _resetBuffer();
+                            _lastHands = const [];
+                            _label = 'Ready';
+                            _confidence = 0.0;
+                            _topPreds = const [];
+                            _sentence = '';
+                            _handDetected = false;
+                          });
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reset'),
+                      ),
+                    ],
                   ),
                 ],
               ),

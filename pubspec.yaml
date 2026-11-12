@@ -97,7 +97,12 @@ flutter:
     - assets/ml/sign_bridge.tflite
     - assets/ml/labels.json
     - assets/avatars/AmyAvatarnew.glb
-    # NOTE: The jas/loc2025 SiGML web-player assets are only needed by the
-    # (currently unused) TextToSignScreen. They add ~38 MB to the APK, so they
-    # are unbundled until we build the Text->Sign pipeline. Re-add these lines
-    # then if we go with the SiGML/JASigning approach.
+    # Small, local CWASA subset for the experimental SiGML examples screen.
+    # Bundle one avatar and the player dependencies, not the full 445 MB JAS tree.
+    - jas/loc2025/cwa/
+    - jas/loc2025/cwa/shaders/
+    - jas/loc2025/sigml/
+    - jas/loc2025/avatars/anna.jar
+    - jas/loc2025/avatars/COMMON.jar
+    - jas/loc2025/agconfig/
+    - jas/loc2025/avconfig.properties
