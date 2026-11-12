@@ -10,13 +10,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sign_bridge/main.dart';
 
 void main() {
-  testWidgets('Home screen renders the Sign to Text entry point', (
+  testWidgets('Home screen renders the translation navigation', (
     WidgetTester tester,
   ) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const SignBridgeApp());
-    // Verify HomeScreen contains app title
+    // The current home screen groups the online translator under Text to Sign.
     expect(find.text('Sign to Text'), findsOneWidget);
-    expect(find.text('Rylo Translate · online'), findsOneWidget);
+    expect(find.text('Text to Sign'), findsOneWidget);
   });
 }
