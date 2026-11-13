@@ -5,6 +5,7 @@ Sign Bridge is a Flutter prototype for **isolated ASL word recognition** and a s
 ## Current app paths
 
 - **Sign to Text (Android):** camera frames → native MediaPipe Holistic → 180 selected landmarks per frame → 64-frame sequence preprocessing → local TFLite embedding model → nearest labels → user-accepted editable sentence text. The camera path is currently Android-only. Similarity is not a calibrated probability; predictions require a deliberate tap before entering the sentence.
+- **Alphabet fallback (Android):** an explicit second camera mode uses 21 hand landmarks and a separate 24-class TFLite model to spell unfamiliar words into editable text. It auto-detects static A–I and K–Y; the on-screen keyboard handles correction, spaces, deletion, and J/Z. It is a constrained fingerspelling prototype, not continuous ASL sentence recognition. See [the fallback model card and evaluator notes](docs/ALPHABET_FALLBACK.md).
 - **Text to Sign:** plays a small set of avatar clips by matching words to named GLB animations. It reports unsupported words. This is a word-by-word animation demo; it does not translate English grammar into ASL grammar. The individual clips still require sign-language expert review.
 - **Text to Sign · SiGML examples (Android):** locally plays a few bundled NGT SiGML examples on a CWASA avatar. It matches known lexicon entries; it is not full English-to-sign translation or ASL.
 - **Rylo Translate · online:** opens Rylo's hosted text-to-sign page in a WebView. It requires internet, and the public page currently reports that its latest Sign models are unavailable.
@@ -25,13 +26,19 @@ To build an Android debug APK:
 flutter build apk --debug
 ```
 
-To create a release APK for a teammate to install directly:
+For the connected Pixel 6 Pro, which is arm64, build a smaller device-specific package:
 
 ```bash
-flutter build apk --release
+flutter build apk --debug --split-per-abi
 ```
 
-Share `build/app/outputs/flutter-apk/app-release.apk` through a private team file share; it is generated locally and is not committed to Git. On Android, allow installation from the file manager used to open the APK, then install it. For a USB or wireless-debugging device, use `adb install -r build/app/outputs/flutter-apk/app-release.apk`. The APK is large because it bundles the on-device model and avatar assets. Android may show the standard unknown-source installation prompt.
+To create an arm64 release APK for a teammate to install directly (build number 2002 updates the current demo install):
+
+```bash
+flutter build apk --release --target-platform android-arm64 --build-number 2002
+```
+
+Share `build/app/outputs/flutter-apk/app-release.apk` through a private team file share; it is generated locally and is not committed to Git. For wireless debugging, install it with `adb install -r build/app/outputs/flutter-apk/app-release.apk`. Teammates can also install from a file manager after allowing installs from that source. Android may show the standard unknown-source installation prompt.
 
 ### Teammate quick start
 
@@ -55,6 +62,8 @@ flutter build apk --debug
 ```
 
 See [docs/TEST_REPORT.md](docs/TEST_REPORT.md) for results from the current audit and its limitations.
+
+The repository root is this `sign_bridge/` folder; its hidden `.git` directory is inside it. In a file manager, enable **Show Hidden Files** to see `.git`.
 
 ## Model and data
 

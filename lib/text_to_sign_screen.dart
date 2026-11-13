@@ -176,6 +176,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
         'jas/loc2025/sigml/welkom-ngt.sigml',
         'jas/loc2025/sigml/iTakeMug.sigml',
         'jas/loc2025/sigml/scotland-H.sigml',
+        'jas/loc2025/sigml/blenderStory.sigml',
       ];
 
       for (final path in files) {
@@ -361,10 +362,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Text → HamNoSys → SiGML → Avatar'),
-        backgroundColor: Colors.green[700],
-      ),
+      appBar: AppBar(title: const Text('Text to Sign · SiGML examples')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(12),
@@ -374,10 +372,11 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                 child: Padding(
                   padding: EdgeInsets.all(12),
                   child: Text(
-                    'Experimental local demo: this bundled lexicon contains a '
-                    'few NGT examples. It matches known words and joins their '
-                    'SiGML blocks; it does not translate English grammar or '
-                    'produce ASL. Try “welcome”, “I take mug”, or “Scotland”.',
+                    'Experimental local demo: this bundled lexicon contains '
+                    'limited NGT example signs. It matches supported glosses '
+                    'and joins their SiGML blocks; it does not translate '
+                    'English grammar or produce ASL. Try “welcome”, “I take '
+                    'mug”, “Scotland”, or “orange blender explode”.',
                   ),
                 ),
               ),
@@ -400,6 +399,41 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                     },
                   ),
                 ),
+              ),
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text('Browse ${_signByGloss.length} bundled glosses'),
+                subtitle: const Text('Tap a gloss to add it to the input'),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: (_signByGloss.keys.toList()..sort()).map((
+                        gloss,
+                      ) {
+                        return ActionChip(
+                          visualDensity: VisualDensity.compact,
+                          label: Text(gloss.replaceAll('_', ' ').toLowerCase()),
+                          onPressed: () {
+                            final current = _textController.text.trim();
+                            final word = gloss
+                                .replaceAll('_', ' ')
+                                .toLowerCase();
+                            _textController.text = current.isEmpty
+                                ? word
+                                : '$current $word';
+                            _textController.selection = TextSelection.collapsed(
+                              offset: _textController.text.length,
+                            );
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Row(
@@ -465,9 +499,9 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                   children: [
                     Expanded(
                       child: _buildPreviewPanel(
-                        title: 'HamNoSys Trace',
+                        title: 'HamNoSys trace (when present)',
                         content: _hamnosysPreview.isEmpty
-                            ? 'Converted HamNoSys tags will appear here.'
+                            ? 'The bundled examples use SiGML hamgestural_sign blocks. A HamNoSys manual trace appears only when that markup is present.'
                             : _hamnosysPreview,
                       ),
                     ),
@@ -495,7 +529,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.grey[100],
-        border: Border.all(color: Colors.grey.shade400),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListView(

@@ -16,11 +16,16 @@ import 'services/native_landmarker_service.dart';
 import 'services/sign_bridge_inference.dart';
 import 'models/prediction.dart';
 import 'screens/asl_dictionary_screen.dart';
+import 'services/fingerspelling_inference.dart';
 
 // Segmentation tuning.
 const _minFramesForSign = 12; // ignore clips shorter than this
 const _maxFramesBuffer = 96; // cap buffer length (~a few seconds)
 const _framesAbsentToPredict = 6; // hand gone this many frames => sign ended
+const _minimumLetterScore = 0.93;
+const _minimumLetterMargin = 0.18;
+
+enum _RecognitionMode { words, fingerspelling }
 
 /// Overlay painter for hand landmarks (21 points each).
 class LandmarksPainter extends CustomPainter {
@@ -98,6 +103,15 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
 
   SignBridgeInference? _model;
   String _modelStatus = 'Loading model...';
+  FingerspellingInference? _fingerspellingModel;
+  String _fingerspellingStatus = 'Loading static alphabet fallback…';
+  _RecognitionMode _recognitionMode = _RecognitionMode.words;
+  final List<String> _letterVotes = [];
+  int _letterFrameCounter = 0;
+  String _letterCandidate = '—';
+  String? _latchedLetter;
+  double _letterScore = 0;
+  int _framesWithoutHands = 0;
 
   // Per-sign frame buffer. Each entry is a flat 540-length (180x3) vector.
   final List<List<double>> _frameBuffer = [];
@@ -120,8 +134,11 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   }
 
   Future<void> _setup() async {
-    await _loadModel();
-    await _initNativeLandmarker();
+    await Future.wait([
+      _loadModel(),
+      _loadFingerspellingModel(),
+      _initNativeLandmarker(),
+    ]);
     await _initCamera();
   }
 
@@ -136,6 +153,23 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       debugPrint('Failed to load Sign Bridge model: $e');
       if (!mounted) return;
       setState(() => _modelStatus = 'Model failed to load: $e');
+    }
+  }
+
+  Future<void> _loadFingerspellingModel() async {
+    try {
+      _fingerspellingModel = await FingerspellingInference.create();
+      if (!mounted) return;
+      setState(
+        () => _fingerspellingStatus =
+            'Static alphabet model ready (${_fingerspellingModel!.names.length} letters)',
+      );
+    } catch (error) {
+      debugPrint('Failed to load fingerspelling model: $error');
+      if (!mounted) return;
+      setState(
+        () => _fingerspellingStatus = 'Alphabet fallback unavailable: $error',
+      );
     }
   }
 
@@ -341,6 +375,11 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   void _handleFrame(NativeFrameResult frame) {
     if (!mounted) return;
 
+    if (_recognitionMode == _RecognitionMode.fingerspelling) {
+      _handleFingerspellingFrame(frame);
+      return;
+    }
+
     if (frame.hasHands && frame.landmarks180 != null) {
       // Collect this frame into the current sign clip.
       _framesAbsent = 0;
@@ -364,6 +403,133 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
         _runPrediction();
       }
     }
+  }
+
+  void _handleFingerspellingFrame(NativeFrameResult frame) {
+    final rawHand = frame.rightHand ?? frame.leftHand;
+    if (!frame.hasHands || rawHand == null || rawHand.length != 63) {
+      _framesWithoutHands++;
+      if (_framesWithoutHands >= 3) {
+        final hadState =
+            _lastHands.isNotEmpty ||
+            _latchedLetter != null ||
+            _letterVotes.isNotEmpty;
+        _letterVotes.clear();
+        _latchedLetter = null;
+        if (hadState) {
+          setState(() {
+            _lastHands = const [];
+            _handDetected = false;
+            _letterCandidate = '—';
+            _letterScore = 0;
+          });
+        }
+      }
+      return;
+    }
+
+    _framesWithoutHands = 0;
+    _letterFrameCounter++;
+    if (_letterFrameCounter % 3 != 0) {
+      if (!_handDetected || _lastHands.isEmpty) {
+        setState(() {
+          _lastHands = frame.overlayHands;
+          _handDetected = true;
+        });
+      }
+      return;
+    }
+
+    final model = _fingerspellingModel;
+    if (model == null) {
+      setState(() {
+        _lastHands = frame.overlayHands;
+        _handDetected = true;
+      });
+      return;
+    }
+
+    try {
+      final prediction = model.predict(rawHand);
+      _letterCandidate = prediction.letter;
+      _letterScore = prediction.score;
+      // Require both a high score and repeated agreement before adding text.
+      final confident =
+          prediction.score >= _minimumLetterScore &&
+          prediction.margin >= _minimumLetterMargin;
+      if (confident) {
+        _letterVotes.add(prediction.letter);
+        if (_letterVotes.length > 6) _letterVotes.removeAt(0);
+      } else {
+        _letterVotes.clear();
+      }
+
+      final agreedVotes = _letterVotes
+          .where((letter) => letter == prediction.letter)
+          .length;
+      final shouldAppend =
+          confident && agreedVotes >= 5 && _latchedLetter != prediction.letter;
+      setState(() {
+        _lastHands = frame.overlayHands;
+        _handDetected = true;
+        if (shouldAppend) {
+          _appendLetter(prediction.letter);
+          _latchedLetter = prediction.letter;
+          _fingerspellingStatus =
+              'Added ${prediction.letter} · lower hand to capture next letter';
+        } else {
+          _fingerspellingStatus = confident
+              ? 'Hold steady · confirming ${prediction.letter}'
+              : 'Low match · adjust hand and try again';
+        }
+      });
+    } catch (error) {
+      debugPrint('Fingerspelling inference error: $error');
+      setState(() => _fingerspellingStatus = 'Could not read this hand shape.');
+    }
+  }
+
+  void _setRecognitionMode(_RecognitionMode mode) {
+    if (_recognitionMode == mode) return;
+    setState(() {
+      _recognitionMode = mode;
+      _resetBuffer();
+      _letterVotes.clear();
+      _latchedLetter = null;
+      _letterCandidate = '—';
+      _letterScore = 0;
+      _framesWithoutHands = 0;
+      _framesAbsent = 0;
+      _handDetected = false;
+      _lastHands = const [];
+      _topPreds = const [];
+      _label = 'Ready';
+      _confidence = 0;
+    });
+  }
+
+  void _appendLetter(String letter) {
+    final next = '$_sentence$letter';
+    _sentenceController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    _sentence = next;
+  }
+
+  void _insertSpace() {
+    if (_sentence.isEmpty || _sentence.endsWith(' ')) return;
+    setState(() => _appendLetter(' '));
+  }
+
+  void _deleteLastCharacter() {
+    if (_sentence.isEmpty) return;
+    final next = _sentence.substring(0, _sentence.length - 1);
+    _sentenceController.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    setState(() => _sentence = next);
   }
 
   Future<void> _runPrediction() async {
@@ -449,7 +615,9 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Try one sign',
+                _recognitionMode == _RecognitionMode.words
+                    ? 'Recognize one word'
+                    : 'Spell a sentence',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 14),
@@ -458,19 +626,34 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                 text:
                     'Keep your face and signing hand inside the camera frame.',
               ),
-              const _GuideStep(
-                number: '2',
-                text:
-                    'Sign one word and hold it briefly. Lower your hand, or tap “Recognize now”.',
-              ),
-              const _GuideStep(
-                number: '3',
-                text:
-                    'Review the candidates. Tap “Add” only when the word looks right; edit the sentence anytime.',
-              ),
+              if (_recognitionMode == _RecognitionMode.words) ...[
+                const _GuideStep(
+                  number: '2',
+                  text:
+                      'Sign one word and hold it briefly. Lower your hand, or tap “Recognize now”.',
+                ),
+                const _GuideStep(
+                  number: '3',
+                  text:
+                      'Review the candidates. Tap “Add” only when the word looks right; edit the sentence anytime.',
+                ),
+              ] else ...[
+                const _GuideStep(
+                  number: '2',
+                  text:
+                      'Hold one static letter shape steady. The fallback adds it after several agreeing frames; lower your hand between letters.',
+                ),
+                const _GuideStep(
+                  number: '3',
+                  text:
+                      'Tap Space between words. Use the on-screen keys to correct text and enter J or Z.',
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
-                'This is an experimental isolated-word recognizer. Its similarity score is not a probability, and it can be wrong. Use the book icon to learn a sign from a video dictionary.',
+                _recognitionMode == _RecognitionMode.words
+                    ? 'The word recognizer is experimental and can be wrong. Its cosine similarity is not a probability. Use the book icon to learn a sign from a video dictionary.'
+                    : 'Fingerspelling is a separate experimental fallback trained on a small image-level split. It covers static A–I and K–Y only; J/Z require movement. The score is not calibrated.',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   height: 1.4,
@@ -483,6 +666,95 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     );
   }
 
+  Widget _buildFingerspellingControls(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.secondaryContainer,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Text(
+                _letterCandidate,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: colors.onSecondaryContainer,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Score ${_letterScore.toStringAsFixed(2)} · $_fingerspellingStatus',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 5),
+        LinearProgressIndicator(
+          value: _letterScore.clamp(0.0, 1.0),
+          minHeight: 5,
+        ),
+        const SizedBox(height: 5),
+        Text(
+          'Static ASL fallback · A–I, K–Y auto detected · J/Z need movement. A high score can still be wrong.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 7),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 3,
+          runSpacing: 0,
+          children: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((letter) {
+            final motionLetter = letter == 'J' || letter == 'Z';
+            return ActionChip(
+              visualDensity: VisualDensity.compact,
+              label: Text(letter),
+              tooltip: motionLetter
+                  ? '$letter requires movement; add it manually'
+                  : 'Insert $letter manually',
+              onPressed: () => setState(() => _appendLetter(letter)),
+              backgroundColor: motionLetter
+                  ? colors.tertiaryContainer
+                  : colors.surfaceContainerHighest,
+            );
+          }).toList(),
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          children: [
+            TextButton.icon(
+              onPressed: _insertSpace,
+              icon: const Icon(Icons.space_bar_rounded),
+              label: const Text('Space'),
+            ),
+            TextButton.icon(
+              onPressed: _deleteLastCharacter,
+              icon: const Icon(Icons.backspace_outlined),
+              label: const Text('Delete'),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                _sentenceController.clear();
+                setState(() => _sentence = '');
+              },
+              icon: const Icon(Icons.clear_rounded),
+              label: const Text('Clear'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     final controller = _cameraController;
@@ -492,6 +764,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     _cameraController?.dispose();
     _nativeLandmarker.dispose();
     _model?.dispose();
+    _fingerspellingModel?.dispose();
     _sentenceController.dispose();
     super.dispose();
   }
@@ -606,114 +879,145 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  SegmentedButton<_RecognitionMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _RecognitionMode.words,
+                        label: Text('Word model'),
+                        icon: Icon(Icons.text_fields_rounded),
+                      ),
+                      ButtonSegment(
+                        value: _RecognitionMode.fingerspelling,
+                        label: Text('Alphabet fallback'),
+                        icon: Icon(Icons.spellcheck_rounded),
+                      ),
+                    ],
+                    selected: {_recognitionMode},
+                    onSelectionChanged: (selection) =>
+                        _setRecognitionMode(selection.first),
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Flexible(
                         child: Text(
-                          '$_landmarkerStatus · $_modelStatus · $_cameraStatus',
+                          '$_landmarkerStatus · ${_recognitionMode == _RecognitionMode.words ? _modelStatus : _fingerspellingStatus} · $_cameraStatus',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Text(
-                        _handDetected
-                            ? '🤚 ${_frameBuffer.length}'
-                            : (_isPredicting ? '⏳' : '◻️'),
+                        _recognitionMode == _RecognitionMode.words
+                            ? (_handDetected
+                                  ? '🤚 ${_frameBuffer.length}'
+                                  : (_isPredicting ? '⏳' : '◻️'))
+                            : (_handDetected ? '🤚' : '◻️'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.tips_and_updates_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 19,
-                        ),
-                        const SizedBox(width: 9),
-                        const Expanded(
-                          child: Text(
-                            'Sign one word, then lower your hand—or recognize the captured sign now.',
-                            style: TextStyle(fontSize: 12, height: 1.35),
+                  if (_recognitionMode == _RecognitionMode.words)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.tips_and_updates_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 19,
                           ),
+                          const SizedBox(width: 9),
+                          const Expanded(
+                            child: Text(
+                              'Sign one word, then lower your hand—or recognize the captured sign now.',
+                              style: TextStyle(fontSize: 12, height: 1.35),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_recognitionMode == _RecognitionMode.words) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed:
+                            _model != null &&
+                                !_isPredicting &&
+                                _frameBuffer.length >= _minFramesForSign
+                            ? _runPrediction
+                            : null,
+                        icon: _isPredicting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.center_focus_strong_rounded),
+                        label: Text(
+                          _isPredicting
+                              ? 'Recognizing…'
+                              : 'Recognize now · ${_frameBuffer.length} frames',
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed:
-                          _model != null &&
-                              !_isPredicting &&
-                              _frameBuffer.length >= _minFramesForSign
-                          ? _runPrediction
-                          : null,
-                      icon: _isPredicting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.center_focus_strong_rounded),
-                      label: Text(
-                        _isPredicting
-                            ? 'Recognizing…'
-                            : 'Recognize now · ${_frameBuffer.length} frames',
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _label,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (_topPreds.isNotEmpty)
-                    Tooltip(
-                      message: 'Add the top prediction to the sentence',
-                      child: TextButton.icon(
-                        onPressed: _acceptTopPrediction,
-                        icon: const Icon(Icons.add),
-                        label: Text('Add “${_topPreds.first.word}”'),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: _confidence.clamp(0.0, 1.0),
-                    minHeight: 10,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Cosine similarity: ${_confidence.toStringAsFixed(3)} (not a calibrated probability)',
-                  ),
-                  if (_topPreds.length > 1) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 12),
                     Text(
-                      'also: ${_topPreds.skip(1).map((p) => '${p.word} (cos ${p.confidence.toStringAsFixed(2)})').join(', ')}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      _label,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                    if (_topPreds.isNotEmpty)
+                      Tooltip(
+                        message: 'Add the top prediction to the sentence',
+                        child: TextButton.icon(
+                          onPressed: _acceptTopPrediction,
+                          icon: const Icon(Icons.add),
+                          label: Text('Add “${_topPreds.first.word}”'),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: _confidence.clamp(0.0, 1.0),
+                      minHeight: 10,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Cosine similarity: ${_confidence.toStringAsFixed(3)} (not a calibrated probability)',
+                    ),
+                    if (_topPreds.length > 1) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'also: ${_topPreds.skip(1).map((p) => '${p.word} (cos ${p.confidence.toStringAsFixed(2)})').join(', ')}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ] else ...[
+                    const SizedBox(height: 8),
+                    _buildFingerspellingControls(context),
                   ],
                   const SizedBox(height: 12),
                   const Divider(),
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Sentence:',
+                      'Text being built:',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -725,9 +1029,11 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
                     ),
                     child: TextField(
                       controller: _sentenceController,
@@ -735,7 +1041,8 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                       maxLines: 3,
                       onChanged: (value) => setState(() => _sentence = value),
                       decoration: const InputDecoration(
-                        hintText: 'Sign a word… or edit recognized text',
+                        hintText:
+                            'Recognized text appears here; you can edit it',
                         border: InputBorder.none,
                       ),
                       style: const TextStyle(
@@ -749,9 +1056,15 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                     spacing: 8,
                     children: [
                       OutlinedButton.icon(
-                        onPressed: _removeLastWord,
+                        onPressed: _recognitionMode == _RecognitionMode.words
+                            ? _removeLastWord
+                            : _deleteLastCharacter,
                         icon: const Icon(Icons.backspace_outlined),
-                        label: const Text('Undo last word'),
+                        label: Text(
+                          _recognitionMode == _RecognitionMode.words
+                              ? 'Undo last word'
+                              : 'Delete last letter',
+                        ),
                       ),
                       OutlinedButton.icon(
                         onPressed: () {

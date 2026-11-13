@@ -125,12 +125,12 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16213E),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         title: const Text('ASL Word Animation Demo'),
-        centerTitle: true,
       ),
       body: SafeArea(
         child: Column(
@@ -139,8 +139,9 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
               child: Container(
                 margin: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF16213E),
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: colors.outlineVariant),
                 ),
                 child: Flutter3DViewer(
                   // Flutter serves this asset under the key declared in
@@ -165,7 +166,7 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
                   hintText: 'Try: I want pizza',
                   hintStyle: const TextStyle(color: Colors.white60),
                   filled: true,
-                  fillColor: const Color(0xFF16213E),
+                  fillColor: colors.surface,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

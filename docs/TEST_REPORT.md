@@ -1,6 +1,17 @@
 # Test and verification report
 
-Date: 2026-10-18 (Asia/Karachi)
+Updated: 2026-11-14 (Asia/Karachi)
+
+## Alphabet fallback, theme, and current Pixel build (2026-11-14)
+
+- Added a separate static fingerspelling fallback, editable text composition, and a correction keyboard. The classifier covers A–I and K–Y; J/Z are entered manually because their ASL forms require movement.
+- Trained a compact MediaPipe-landmark MLP on the small Kaggle ASL Alphabet image dataset. Its held-out image-level score is 90.29% top-1 and 90.28% macro-F1. With the conservative runtime gate, 71/103 test examples are accepted (68.93% coverage) and all 71 accepted examples are correct. This is not signer-independent or real-phone accuracy evidence; see [ALPHABET_FALLBACK.md](ALPHABET_FALLBACK.md).
+- Updated the app palette and home navigation, and included `blenderStory.sigml` in the bundled SiGML lexicon. The Text-to-Sign screen now shows supported glosses and clearly describes its NGT example scope.
+- `dart format` and Python `py_compile`: PASS. `flutter analyze`: PASS, no issues. `flutter test`: PASS, all tests passed. `flutter build apk --debug --split-per-abi`: PASS; arm64 APK at `build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk` (about 147 MB).
+- Release package: `flutter build apk --release --target-platform android-arm64 --build-number 2002`: PASS; 103.5 MB at `build/app/outputs/flutter-apk/app-release.apk`. Installed as version code 2002 over the existing Pixel build and launched successfully.
+- Pixel 6 Pro, Android 16, wireless ADB: latest arm64 APK installed and launched. Home and Text-to-Sign pages rendered. The live camera/Holistic and word-model status were ready. Alphabet model loaded; a low-match live pose displayed “Low match” and was not inserted. Manual A/B/C input appeared in the editable text field. The `orange blender explode` phrase loaded and played through the SiGML avatar.
+- This device check confirms loading and interaction only. No fluent signer provided ground-truth letters; real-world alphabet accuracy, latency, and robustness remain unmeasured.
+- Standalone `.hamnosys`/`.hns` files beyond the repository's bundled samples were not located in the searched Desktop or mounted data folders. The additional lexicon source is bundled SiGML `hamgestural_sign` content, not a claim of newly authored HamNoSys signs.
 
 ## Presentation UI and handoff update (2026-11-12)
 
