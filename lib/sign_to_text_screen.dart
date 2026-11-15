@@ -109,8 +109,8 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   final List<String> _letterVotes = [];
   int _letterFrameCounter = 0;
   String _letterCandidate = '—';
+  bool _letterIsConfident = false;
   String? _latchedLetter;
-  double _letterScore = 0;
   int _framesWithoutHands = 0;
 
   // Per-sign frame buffer. Each entry is a flat 540-length (180x3) vector.
@@ -121,11 +121,57 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   List<List<double>> _lastHands = const [];
   bool _handDetected = false;
 
-  String _label = 'Ready';
-  double _confidence = 0.0;
+  String _label = 'Show one sign to begin';
   List<Prediction> _topPreds = const [];
   String _sentence = '';
   final TextEditingController _sentenceController = TextEditingController();
+
+  String get _userStatus {
+    final camera = _cameraStatus.toLowerCase();
+    if (camera.contains('permission')) return 'Allow camera access in Settings';
+    if (camera.contains('no camera')) return 'No camera is available';
+    if (camera.contains('unavailable') || camera.contains('could not')) {
+      return 'The camera could not start';
+    }
+    final landmarker = _landmarkerStatus.toLowerCase();
+    if (landmarker.contains('unavailable') || landmarker.contains('failed')) {
+      return 'Sign recognition is unavailable on this device';
+    }
+    if (_recognitionMode == _RecognitionMode.words &&
+        _modelStatus.toLowerCase().contains('failed')) {
+      return 'Sign recognition could not start';
+    }
+    if (_recognitionMode == _RecognitionMode.fingerspelling &&
+        _fingerspellingStatus.toLowerCase().contains('unavailable')) {
+      return 'Letter spelling could not start';
+    }
+    if (!_nativeReady ||
+        (_recognitionMode == _RecognitionMode.words && _model == null) ||
+        (_recognitionMode == _RecognitionMode.fingerspelling &&
+            _fingerspellingModel == null)) {
+      return 'Preparing sign recognition…';
+    }
+    if (!_cameraRunning) return 'Camera paused';
+    if (!_handDetected) return 'Camera ready · show your signing hand';
+    if (_recognitionMode == _RecognitionMode.fingerspelling) {
+      if (_fingerspellingStatus.startsWith('Low match')) {
+        return 'Hand in view · adjust your hand shape';
+      }
+      if (_fingerspellingStatus.startsWith('Added')) {
+        return 'Letter added · lower your hand for the next one';
+      }
+      return 'Hand in view · hold the shape steady';
+    }
+    return 'Hand in view · sign one word';
+  }
+
+  String get _userPredictionLabel {
+    if (_label == 'Ready' || _label == 'Show one sign to begin') {
+      return 'Show one sign to begin';
+    }
+    if (_label == 'Inference error') return 'Could not recognize that sign';
+    return _label;
+  }
 
   @override
   void initState() {
@@ -421,7 +467,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
             _lastHands = const [];
             _handDetected = false;
             _letterCandidate = '—';
-            _letterScore = 0;
+            _letterIsConfident = false;
           });
         }
       }
@@ -452,7 +498,6 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     try {
       final prediction = model.predict(rawHand);
       _letterCandidate = prediction.letter;
-      _letterScore = prediction.score;
       // Require both a high score and repeated agreement before adding text.
       final confident =
           prediction.score >= _minimumLetterScore &&
@@ -472,6 +517,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       setState(() {
         _lastHands = frame.overlayHands;
         _handDetected = true;
+        _letterIsConfident = confident;
         if (shouldAppend) {
           _appendLetter(prediction.letter);
           _latchedLetter = prediction.letter;
@@ -497,14 +543,13 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       _letterVotes.clear();
       _latchedLetter = null;
       _letterCandidate = '—';
-      _letterScore = 0;
+      _letterIsConfident = false;
       _framesWithoutHands = 0;
       _framesAbsent = 0;
       _handDetected = false;
       _lastHands = const [];
       _topPreds = const [];
-      _label = 'Ready';
-      _confidence = 0;
+      _label = 'Show one sign to begin';
     });
   }
 
@@ -560,7 +605,6 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
         _topPreds = preds;
         if (preds.isNotEmpty) {
           _label = preds.first.word;
-          _confidence = preds.first.confidence;
         }
       });
     } catch (e) {
@@ -616,44 +660,43 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
             children: [
               Text(
                 _recognitionMode == _RecognitionMode.words
-                    ? 'Recognize one word'
-                    : 'Spell a sentence',
+                    ? 'Recognize one sign'
+                    : 'Spell a message',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 14),
               const _GuideStep(
                 number: '1',
-                text:
-                    'Keep your face and signing hand inside the camera frame.',
+                text: 'Keep your signing hand in view of the camera.',
               ),
               if (_recognitionMode == _RecognitionMode.words) ...[
                 const _GuideStep(
                   number: '2',
                   text:
-                      'Sign one word and hold it briefly. Lower your hand, or tap “Recognize now”.',
+                      'Sign one word at a time. Tap “Recognize this sign”, then review the suggested word.',
                 ),
                 const _GuideStep(
                   number: '3',
                   text:
-                      'Review the candidates. Tap “Add” only when the word looks right; edit the sentence anytime.',
+                      'Tap “Add word” if it looks right. You can edit the message at any time.',
                 ),
               ] else ...[
                 const _GuideStep(
                   number: '2',
                   text:
-                      'Hold one static letter shape steady. The fallback adds it after several agreeing frames; lower your hand between letters.',
+                      'Hold a handshape steady until a letter is added. Lower your hand briefly before the next letter.',
                 ),
                 const _GuideStep(
                   number: '3',
                   text:
-                      'Tap Space between words. Use the on-screen keys to correct text and enter J or Z.',
+                      'Use Space between words and the letter keys to correct the message or add any missed letter.',
                 ),
               ],
               const SizedBox(height: 8),
               Text(
                 _recognitionMode == _RecognitionMode.words
-                    ? 'The word recognizer is experimental and can be wrong. Its cosine similarity is not a probability. Use the book icon to learn a sign from a video dictionary.'
-                    : 'Fingerspelling is a separate experimental fallback trained on a small image-level split. It covers static A–I and K–Y only; J/Z require movement. The score is not calibrated.',
+                    ? 'This feature recognizes a limited set of one-word signs and can make mistakes. Check every suggestion before adding it. Use the book icon to learn a sign.'
+                    : 'The camera recognizes most still letter shapes. Some letters involve movement and may need to be typed. Check and correct the message as you go.',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   height: 1.4,
@@ -680,29 +723,20 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
           child: Row(
             children: [
               Text(
-                _letterCandidate,
+                _letterIsConfident ? _letterCandidate : '…',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: colors.onSecondaryContainer,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Score ${_letterScore.toStringAsFixed(2)} · $_fingerspellingStatus',
-                ),
-              ),
+              Expanded(child: Text(_fingerspellingStatus)),
             ],
           ),
         ),
         const SizedBox(height: 5),
-        LinearProgressIndicator(
-          value: _letterScore.clamp(0.0, 1.0),
-          minHeight: 5,
-        ),
-        const SizedBox(height: 5),
         Text(
-          'Static ASL fallback · A–I, K–Y auto detected · J/Z need movement. A high score can still be wrong.',
+          'Hold each handshape still. Use the keys for any letter the camera misses.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
@@ -781,7 +815,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(_cameraStatus, textAlign: TextAlign.center),
+                  child: Text(_userStatus, textAlign: TextAlign.center),
                 ),
               ],
             ),
@@ -862,7 +896,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                           vertical: 6,
                         ),
                         child: Text(
-                          _cameraStatus,
+                          'Camera paused',
                           style: const TextStyle(color: Colors.white),
                         ),
                       ),
@@ -883,12 +917,12 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                     segments: const [
                       ButtonSegment(
                         value: _RecognitionMode.words,
-                        label: Text('Word model'),
+                        label: Text('Recognize words'),
                         icon: Icon(Icons.text_fields_rounded),
                       ),
                       ButtonSegment(
                         value: _RecognitionMode.fingerspelling,
-                        label: Text('Alphabet fallback'),
+                        label: Text('Spell by hand'),
                         icon: Icon(Icons.spellcheck_rounded),
                       ),
                     ],
@@ -902,17 +936,18 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                     children: [
                       Flexible(
                         child: Text(
-                          '$_landmarkerStatus · ${_recognitionMode == _RecognitionMode.words ? _modelStatus : _fingerspellingStatus} · $_cameraStatus',
+                          _userStatus,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Text(
-                        _recognitionMode == _RecognitionMode.words
-                            ? (_handDetected
-                                  ? '🤚 ${_frameBuffer.length}'
-                                  : (_isPredicting ? '⏳' : '◻️'))
-                            : (_handDetected ? '🤚' : '◻️'),
+                      Icon(
+                        _handDetected
+                            ? Icons.back_hand_rounded
+                            : Icons.back_hand_outlined,
+                        color: _handDetected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ],
                   ),
@@ -938,7 +973,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                           const SizedBox(width: 9),
                           const Expanded(
                             child: Text(
-                              'Sign one word, then lower your hand—or recognize the captured sign now.',
+                              'Sign one word at a time, then tap below to see a suggestion.',
                               style: TextStyle(fontSize: 12, height: 1.35),
                             ),
                           ),
@@ -968,40 +1003,48 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                         label: Text(
                           _isPredicting
                               ? 'Recognizing…'
-                              : 'Recognize now · ${_frameBuffer.length} frames',
+                              : 'Recognize this sign',
                         ),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      _label,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
+                    if (_topPreds.isEmpty)
+                      Text(
+                        _userPredictionLabel,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    else ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Possible match',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
                       ),
-                    ),
+                      Text(
+                        _userPredictionLabel,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                     if (_topPreds.isNotEmpty)
                       Tooltip(
                         message: 'Add the top prediction to the sentence',
                         child: TextButton.icon(
                           onPressed: _acceptTopPrediction,
                           icon: const Icon(Icons.add),
-                          label: Text('Add “${_topPreds.first.word}”'),
+                          label: Text('Add word · ${_topPreds.first.word}'),
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: _confidence.clamp(0.0, 1.0),
-                      minHeight: 10,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Cosine similarity: ${_confidence.toStringAsFixed(3)} (not a calibrated probability)',
-                    ),
                     if (_topPreds.length > 1) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'also: ${_topPreds.skip(1).map((p) => '${p.word} (cos ${p.confidence.toStringAsFixed(2)})').join(', ')}',
+                        'Other suggestions: ${_topPreds.skip(1).take(4).map((p) => p.word).join(', ')}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -1017,7 +1060,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Text being built:',
+                      'Your message',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -1041,8 +1084,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                       maxLines: 3,
                       onChanged: (value) => setState(() => _sentence = value),
                       decoration: const InputDecoration(
-                        hintText:
-                            'Recognized text appears here; you can edit it',
+                        hintText: 'Recognized text appears here',
                         border: InputBorder.none,
                       ),
                       style: const TextStyle(
@@ -1080,8 +1122,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                           setState(() {
                             _resetBuffer();
                             _lastHands = const [];
-                            _label = 'Ready';
-                            _confidence = 0.0;
+                            _label = 'Show one sign to begin';
                             _topPreds = const [];
                             _sentence = '';
                             _handDetected = false;

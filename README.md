@@ -4,12 +4,11 @@ Sign Bridge is a Flutter prototype for **isolated ASL word recognition** and a s
 
 ## Current app paths
 
-- **Sign to Text (Android):** camera frames → native MediaPipe Holistic → 180 selected landmarks per frame → 64-frame sequence preprocessing → local TFLite embedding model → nearest labels → user-accepted editable sentence text. The camera path is currently Android-only. Similarity is not a calibrated probability; predictions require a deliberate tap before entering the sentence.
-- **Alphabet fallback (Android):** an explicit second camera mode uses 21 hand landmarks and a separate 24-class TFLite model to spell unfamiliar words into editable text. It auto-detects static A–I and K–Y; the on-screen keyboard handles correction, spaces, deletion, and J/Z. It is a constrained fingerspelling prototype, not continuous ASL sentence recognition. See [the fallback model card and evaluator notes](docs/ALPHABET_FALLBACK.md).
+- **Sign to Text (Android):** recognizes a limited vocabulary of isolated signs. Suggested words must be reviewed before adding them to the editable message.
+- **Spell by hand (Android):** a separate fingerspelling mode builds editable text from still letter shapes, with on-screen correction and space controls. Some moving letters are entered with the keyboard. See [the model card](docs/ALPHABET_FALLBACK.md).
 - **Text to Sign:** plays a small set of avatar clips by matching words to named GLB animations. It reports unsupported words. This is a word-by-word animation demo; it does not translate English grammar into ASL grammar. The individual clips still require sign-language expert review.
 - **Text to Sign · SiGML examples (Android):** locally plays a few bundled NGT SiGML examples on a CWASA avatar. It matches known lexicon entries; it is not full English-to-sign translation or ASL.
 - **Rylo Translate · online:** opens Rylo's hosted text-to-sign page in a WebView. It requires internet, and the public page currently reports that its latest Sign models are unavailable.
-- **Sign Test:** development screen for model inference.
 
 ## Local setup
 
@@ -35,7 +34,7 @@ flutter build apk --debug --split-per-abi
 To create an arm64 release APK for a teammate to install directly (build number 2002 updates the current demo install):
 
 ```bash
-flutter build apk --release --target-platform android-arm64 --build-number 2002
+flutter build apk --release --target-platform android-arm64 --build-number 2004
 ```
 
 Share `build/app/outputs/flutter-apk/app-release.apk` through a private team file share; it is generated locally and is not committed to Git. For wireless debugging, install it with `adb install -r build/app/outputs/flutter-apk/app-release.apk`. Teammates can also install from a file manager after allowing installs from that source. Android may show the standard unknown-source installation prompt.
@@ -93,4 +92,4 @@ The reproducible trainer is [scripts/train_sign_bridge.py](scripts/train_sign_br
 
 ## Project status
 
-The reproducible Kaggle workflow completed an 80-epoch fine-tune and the improved 351-label TFLite export is integrated. Paired official-split testing improved top-1 from 23.93% to 26.79% and macro-F1 from 16.20% to 20.03%. The updated release was installed on a Pixel 6 Pro; camera/Holistic/model startup, manual sentence acceptance, SiGML playback, and the local avatar's supported word clips were checked. A controlled labeled sign attempt remains necessary to verify real-user recognition. The Rylo route opens, but its page currently says the public generation models are unavailable. This project is **not 100% complete** and does not yet provide unrestricted sentence-level translation in either direction. See [docs/MODEL_EVALUATION.md](docs/MODEL_EVALUATION.md), [docs/TEST_REPORT.md](docs/TEST_REPORT.md), and [docs/TEXT_TO_SIGN.md](docs/TEXT_TO_SIGN.md).
+The reproducible Kaggle workflow completed an 80-epoch fine-tune and the improved 351-label TFLite export is integrated. Paired held-out testing improved top-1 from 23.93% to 26.79% and macro-F1 from 16.20% to 20.03%. This is a modest benchmark result; real-signer accuracy is unknown. See [the sign-to-text evaluation and defense guide](docs/SIGN_TO_TEXT_DEFENSE.md), [docs/MODEL_EVALUATION.md](docs/MODEL_EVALUATION.md), [docs/TEST_REPORT.md](docs/TEST_REPORT.md), and [docs/TEXT_TO_SIGN.md](docs/TEXT_TO_SIGN.md).

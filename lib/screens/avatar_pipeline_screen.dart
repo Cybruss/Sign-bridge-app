@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 
 /// Plays a small, explicitly limited set of named avatar clips.
-/// This is a word-animation demo, not sentence-level ASL translation.
+/// Plays the supported short word animations.
 class AvatarPipelineScreen extends StatefulWidget {
   const AvatarPipelineScreen({super.key});
 
@@ -40,7 +40,7 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
         _modelReady = true;
         _status = clips.isEmpty
             ? 'Avatar loaded, but no animation clips are available.'
-            : 'Avatar ready. Enter words to play matching clips. This is not sentence translation.';
+            : 'Ready. Enter words to see the available signs.';
       });
     } catch (error) {
       if (!mounted) return;
@@ -130,7 +130,7 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        title: const Text('ASL Word Animation Demo'),
+        title: const Text('Word animations'),
       ),
       body: SafeArea(
         child: Column(
@@ -139,7 +139,7 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
               child: Container(
                 margin: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colors.surface,
+                  color: const Color(0xFF1A1C22),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: colors.outlineVariant),
                 ),
@@ -161,10 +161,10 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
                 controller: _textController,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Color(0xFF2A2620)),
                 decoration: InputDecoration(
                   hintText: 'Try: I want pizza',
-                  hintStyle: const TextStyle(color: Colors.white60),
+                  hintStyle: const TextStyle(color: Color(0xFF7A7064)),
                   filled: true,
                   fillColor: colors.surface,
                   border: OutlineInputBorder(
@@ -199,16 +199,19 @@ class _AvatarPipelineScreenState extends State<AvatarPipelineScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_status, style: const TextStyle(color: Colors.white)),
+                  Text(_status, style: TextStyle(color: colors.onSurface)),
                   const SizedBox(height: 4),
                   Text(
-                    'Matched clips: ${_matchedClips.join(', ')}${_unsupportedWords.isEmpty ? '' : '\nUnsupported words: ${_unsupportedWords.join(', ')}'}',
-                    style: const TextStyle(color: Colors.white70),
+                    'Available signs: ${_matchedClips.length}${_unsupportedWords.isEmpty ? '' : '\nNo sign found for: ${_unsupportedWords.join(', ')}'}',
+                    style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Supported source words: I, me, want, eat, pizza, cake, and. The avatar plays isolated named clips; phrase grammar is not translated.',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  Text(
+                    'Available words: I, me, want, eat, pizza, cake, and. Only matching words are shown; sentence structure is not translated.',
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),

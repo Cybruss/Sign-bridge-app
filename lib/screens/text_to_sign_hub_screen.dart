@@ -22,44 +22,44 @@ class TextToSignHubScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
             Text(
-              'Choose how to view a sign',
+              'Explore signs and examples',
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
-              'Try the on-device examples first. The hosted translator needs an internet connection.',
+              'Choose a local example, learn a sign, or open the online translator.',
               style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
             ),
             const SizedBox(height: 22),
             _OptionCard(
               icon: Icons.accessibility_new_rounded,
-              title: 'Local word avatar',
+              title: 'Word animations',
               description:
-                  'Enter a short phrase. The avatar plays only the word clips available in this demo.',
-              badge: 'OFFLINE',
-              color: const Color(0xFF4962A8),
+                  'Enter a phrase to play the word animations available here.',
+              badge: 'ON DEVICE',
+              color: const Color(0xFF1A1C22),
               onTap: () => _open(context, const AvatarPipelineScreen()),
             ),
             const SizedBox(height: 12),
             _OptionCard(
               icon: Icons.animation_rounded,
-              title: 'Prepared SiGML examples',
+              title: 'Local sign examples',
               description:
-                  'Convert supported words from the bundled lexicon and play them on the local avatar.',
-              badge: 'BUNDLED',
-              color: const Color(0xFF8D5C32),
+                  'Enter a supported word or phrase to play it on the signing avatar.',
+              badge: 'ON DEVICE',
+              color: const Color(0xFFAE5736),
               onTap: () => _open(context, const TextToSignScreen()),
             ),
             const SizedBox(height: 12),
             _OptionCard(
               icon: Icons.language_rounded,
-              title: 'Online translation fallback',
+              title: 'Online translator',
               description:
-                  'Open Rylo’s hosted English-to-ASL translator. Text is sent to that service.',
-              badge: 'INTERNET',
-              color: const Color(0xFF7052A1),
+                  'Open the English-to-ASL translator. Text entered there is sent to Rylo.',
+              badge: 'ONLINE',
+              color: const Color(0xFF69518A),
               onTap: () => _open(context, const RyloTranslateScreen()),
             ),
             const SizedBox(height: 12),
@@ -69,7 +69,7 @@ class TextToSignHubScreen extends StatelessWidget {
               description:
                   'Search a hosted ASL video dictionary before trying a sign with the camera.',
               badge: 'LEARNING',
-              color: const Color(0xFF147D78),
+              color: const Color(0xFF9A653B),
               onTap: () => _open(context, const AslDictionaryScreen()),
             ),
             const SizedBox(height: 20),
@@ -86,7 +86,7 @@ class TextToSignHubScreen extends StatelessWidget {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'These are word-level demonstrations. They do not translate complete sentences using ASL grammar.',
+                      'Available signs are limited. Complete sentences may not follow sign-language grammar.',
                       style: TextStyle(fontSize: 13, height: 1.4),
                     ),
                   ),

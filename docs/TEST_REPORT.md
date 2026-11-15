@@ -2,6 +2,16 @@
 
 Updated: 2026-11-14 (Asia/Karachi)
 
+## Public presentation cleanup and website-aligned theme (2026-11-15)
+
+- Matched the app palette to [sign-bridge.app](https://www.sign-bridge.app/): warm paper `#F6F1E7`, ink `#2A2620`, cream surfaces, and clay accents.
+- Removed the project-demo badge, developer diagnostics entry point, raw model similarity/score details, and unused inference test screen from the user-facing app. Sign recognition now uses plain language and presents word outputs as suggestions; users can review and edit the message.
+- Renamed internal routes and controls in the public flow, removed the HamNoSys/SiGML debug trace panels from the sign example screen, and retained plain-language notices about limited sign coverage, language examples, and online text sharing.
+- Added [SIGN_TO_TEXT_DEFENSE.md](SIGN_TO_TEXT_DEFENSE.md), which documents the exact pipeline, measured results, failure limitations, demo approach, and evaluator Q&A.
+- `flutter analyze`: PASS, no issues. `flutter test`: PASS, all tests passed.
+- Arm64 release build: PASS, version code 2004, 103.5 MB at `build/app/outputs/flutter-apk/app-release.apk`. Installed on the Pixel 6 Pro (Android 16) and launched successfully.
+- Visual device checks: website-aligned home screen, plain-language sign-recognition screen with hidden raw scores, still-letter mode with a friendly low-match state, and local sign examples page with a signing avatar. The build is fully usable as an evaluation prototype; recognition accuracy remains limited as described in [SIGN_TO_TEXT_DEFENSE.md](SIGN_TO_TEXT_DEFENSE.md).
+
 ## Alphabet fallback, theme, and current Pixel build (2026-11-14)
 
 - Added a separate static fingerspelling fallback, editable text composition, and a correction keyboard. The classifier covers A–I and K–Y; J/Z are entered manually because their ASL forms require movement.

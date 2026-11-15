@@ -10,36 +10,36 @@ class SignBridgeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const ink = Color(0xFF182D36);
+    const ink = Color(0xFF2A2620);
     final scheme = ColorScheme.light(
-      primary: const Color(0xFF0B6B67),
+      primary: const Color(0xFFAE5736),
       onPrimary: Colors.white,
-      primaryContainer: const Color(0xFFD6ECE9),
-      onPrimaryContainer: const Color(0xFF083F3D),
-      secondary: const Color(0xFF315C7A),
+      primaryContainer: const Color(0xFFFAF1EB),
+      onPrimaryContainer: const Color(0xFF582A1B),
+      secondary: const Color(0xFF1A1C22),
       onSecondary: Colors.white,
-      secondaryContainer: const Color(0xFFDCE8F0),
-      onSecondaryContainer: const Color(0xFF18384F),
-      tertiary: const Color(0xFFA75E3B),
+      secondaryContainer: const Color(0xFFEBE6DD),
+      onSecondaryContainer: const Color(0xFF302C26),
+      tertiary: const Color(0xFF9A653B),
       onTertiary: Colors.white,
-      tertiaryContainer: const Color(0xFFF4E1D7),
-      onTertiaryContainer: const Color(0xFF542716),
-      surface: Colors.white,
+      tertiaryContainer: const Color(0xFFF6E8D7),
+      onTertiaryContainer: const Color(0xFF4D321E),
+      surface: const Color(0xFFFFFDF9),
       onSurface: ink,
-      surfaceContainerLow: const Color(0xFFF7F9FA),
-      surfaceContainerHighest: const Color(0xFFEAF0F2),
-      onSurfaceVariant: const Color(0xFF52656D),
-      outline: const Color(0xFF71838A),
-      outlineVariant: const Color(0xFFD5DFE2),
+      surfaceContainerLow: const Color(0xFFFBF7F0),
+      surfaceContainerHighest: const Color(0xFFF0E8DB),
+      onSurfaceVariant: const Color(0xFF7A7064),
+      outline: const Color(0xFF8A8075),
+      outlineVariant: const Color(0xFFE7DFD0),
     );
     return MaterialApp(
       title: 'Sign Bridge',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: scheme,
-        scaffoldBackgroundColor: const Color(0xFFF2F6F7),
+        scaffoldBackgroundColor: const Color(0xFFF6F1E7),
         appBarTheme: AppBarTheme(
-          backgroundColor: const Color(0xFFF2F6F7),
+          backgroundColor: const Color(0xFFF6F1E7),
           foregroundColor: scheme.onSurface,
           elevation: 0,
           centerTitle: false,
@@ -86,7 +86,7 @@ class SignBridgeApp extends StatelessWidget {
           ),
         ),
         navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: const Color(0xFFEAF0F2),
+          backgroundColor: const Color(0xFFEBE6DD),
           indicatorColor: scheme.primaryContainer,
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             final selected = states.contains(WidgetState.selected);

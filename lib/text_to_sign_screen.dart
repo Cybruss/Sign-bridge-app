@@ -21,12 +21,10 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
   bool _avatarReady = false;
   bool _lexiconReady = false;
   bool _webViewReady = false;
-  String _status = 'Loading avatar + SiGML lexicon...';
+  String _status = 'Loading sign examples…';
 
   final Map<String, String> _signByGloss = <String, String>{};
 
-  String _hamnosysPreview = '';
-  String _sigmlPreview = '';
   List<String> _missingTokens = <String>[];
 
   @override
@@ -40,8 +38,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
     if (!Platform.isAndroid) {
       if (mounted) {
         setState(
-          () =>
-              _status = 'The bundled SiGML player currently requires Android.',
+          () => _status = 'Sign examples are currently available on Android.',
         );
       }
       return;
@@ -63,17 +60,13 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
             setState(() {
               _avatarReady = true;
               _status = _lexiconReady
-                  ? 'Avatar ready. Enter text and press Convert.'
-                  : 'Avatar ready. Waiting for lexicon...';
+                  ? 'Ready to show signs.'
+                  : 'Loading sign examples…';
             });
           } else if (msg.startsWith('status:')) {
-            setState(() {
-              _status = 'Avatar: ${msg.substring(7)}';
-            });
+            setState(() => _status = 'Preparing sign player…');
           } else if (msg.startsWith('error:')) {
-            setState(() {
-              _status = 'Avatar error: ${msg.substring(6)}';
-            });
+            setState(() => _status = 'The sign player could not load.');
           }
         },
       )
@@ -82,7 +75,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
           onPageStarted: (url) {
             if (!mounted) return;
             setState(() {
-              _status = 'Loading player: $url';
+              _status = 'Loading sign player…';
             });
           },
           onPageFinished: (url) {
@@ -90,14 +83,15 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
             setState(() {
               _webViewReady = true;
               if (!_avatarReady) {
-                _status = 'Player loaded, waiting avatar init...';
+                _status = 'Preparing sign player…';
               }
             });
           },
           onWebResourceError: (error) {
             if (!mounted) return;
             setState(() {
-              _status = 'WebView error: ${error.description}';
+              _status =
+                  'Could not load the sign player. Check your connection.';
             });
           },
         ),
@@ -188,13 +182,13 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
       setState(() {
         _lexiconReady = true;
         _status = _avatarReady
-            ? 'Ready. Enter text and press Convert.'
-            : 'Lexicon loaded. Waiting for avatar...';
+            ? 'Ready to show signs.'
+            : 'Preparing sign player…';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _status = 'Failed to load SiGML lexicon: $e';
+        _status = 'Could not load sign examples.';
       });
     }
   }
@@ -241,7 +235,6 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
 
     final tokens = _tokenize(input);
     final selectedSigns = <String>[];
-    final hamnosysRows = <String>[];
     final missing = <String>[];
 
     for (final token in tokens) {
@@ -252,16 +245,13 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
         continue;
       }
       selectedSigns.add(sign);
-      hamnosysRows.add(_buildHamnosysTrace(gloss, sign));
     }
 
     if (selectedSigns.isEmpty) {
       setState(() {
         _missingTokens = missing;
-        _hamnosysPreview = '';
-        _sigmlPreview = '';
         _status =
-            'No matching signs found in current lexicon. Try: welcome, here, i, take, mug, scotland.';
+            'No available signs found. Try welcome, here, I take mug, Scotland, or orange blender explode.';
       });
       return;
     }
@@ -270,9 +260,9 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
 
     setState(() {
       _missingTokens = missing;
-      _hamnosysPreview = hamnosysRows.join('\n\n');
-      _sigmlPreview = sigml;
-      _status = 'Converted text to SiGML (${selectedSigns.length} sign(s)).';
+      _status = missing.isEmpty
+          ? 'Playing ${selectedSigns.length} available signs.'
+          : 'Playing available signs. No sign found for: ${missing.join(', ')}.';
     });
 
     if (_avatarReady && _webController != null) {
@@ -280,11 +270,11 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
       await _webController!.runJavaScript('playSigmlFromFlutter($escaped);');
       if (!mounted) return;
       setState(() {
-        _status = 'Playing on avatar...';
+        _status = 'Signs are playing.';
       });
     } else {
       setState(() {
-        _status = 'SiGML generated. Avatar is not ready yet.';
+        _status = 'The sign player is still getting ready.';
       });
     }
   }
@@ -323,33 +313,6 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
     return '<?xml version="1.0" encoding="utf-8"?>\n<sigml>\n\n$content\n\n</sigml>\n';
   }
 
-  String _buildHamnosysTrace(String gloss, String signXml) {
-    final lower = signXml.toLowerCase();
-    final isHns = lower.contains('<hamnosys_manual>');
-    final manualTags = <String>[];
-
-    if (isHns) {
-      final manualRegex = RegExp(
-        r'<hamnosys_manual>([\s\S]*?)</hamnosys_manual>',
-        caseSensitive: false,
-      );
-      final match = manualRegex.firstMatch(signXml);
-      if (match != null) {
-        final part = match.group(1) ?? '';
-        final tagRegex = RegExp(r'<([a-zA-Z0-9_]+)\b');
-        for (final t in tagRegex.allMatches(part)) {
-          manualTags.add(t.group(1) ?? '');
-        }
-      }
-    }
-
-    final compact = manualTags.where((e) => e.isNotEmpty).take(16).join('  ');
-    if (compact.isEmpty) {
-      return '[$gloss]\nManual trace not extracted (non-HamNoSys style sign block).';
-    }
-    return '[$gloss]\n$compact';
-  }
-
   Future<void> _stopAvatar() async {
     if (_webController == null) return;
     await _webController!.runJavaScript('stopSigmlFromFlutter();');
@@ -362,7 +325,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Text to Sign · SiGML examples')),
+      appBar: AppBar(title: const Text('Local sign examples')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(12),
@@ -372,11 +335,11 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                 child: Padding(
                   padding: EdgeInsets.all(12),
                   child: Text(
-                    'Experimental local demo: this bundled lexicon contains '
-                    'limited NGT example signs. It matches supported glosses '
-                    'and joins their SiGML blocks; it does not translate '
-                    'English grammar or produce ASL. Try “welcome”, “I take '
-                    'mug”, “Scotland”, or “orange blender explode”.',
+                    'This small collection uses Dutch Sign Language examples. '
+                    'It plays available words in sequence and does not convert '
+                    'English sentence grammar into sign language. Try '
+                    '“welcome”, “I take mug”, “Scotland”, or '
+                    '“orange blender explode”.',
                   ),
                 ),
               ),
@@ -384,17 +347,15 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
               TextField(
                 controller: _textController,
                 decoration: InputDecoration(
-                  labelText: 'Enter text (example: I take mug)',
+                  labelText: 'Enter a word or short phrase',
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.clear),
                     onPressed: () {
                       _textController.clear();
                       setState(() {
-                        _hamnosysPreview = '';
-                        _sigmlPreview = '';
                         _missingTokens = <String>[];
-                        _status = 'Cleared.';
+                        _status = 'Ready to show signs.';
                       });
                     },
                   ),
@@ -403,8 +364,8 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
               const SizedBox(height: 8),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
-                title: Text('Browse ${_signByGloss.length} bundled glosses'),
-                subtitle: const Text('Tap a gloss to add it to the input'),
+                title: const Text('Browse available words'),
+                subtitle: const Text('Tap a word to add it'),
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -442,7 +403,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _convertAndPlay,
                       icon: const Icon(Icons.play_arrow),
-                      label: const Text('Convert + Play'),
+                      label: const Text('Show signs'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -450,7 +411,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _stopAvatar,
                       icon: const Icon(Icons.stop),
-                      label: const Text('Stop Avatar'),
+                      label: const Text('Stop'),
                     ),
                   ),
                 ],
@@ -474,7 +435,7 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                   child: Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'Missing tokens in current lexicon: ${_missingTokens.join(', ')}',
+                      'No available sign for: ${_missingTokens.join(', ')}',
                       style: const TextStyle(
                         color: Colors.orange,
                         fontSize: 12,
@@ -492,55 +453,9 @@ class _TextToSignScreenState extends State<TextToSignScreen> {
                       : WebViewWidget(controller: _webController!),
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 260,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildPreviewPanel(
-                        title: 'HamNoSys trace (when present)',
-                        content: _hamnosysPreview.isEmpty
-                            ? 'The bundled examples use SiGML hamgestural_sign blocks. A HamNoSys manual trace appears only when that markup is present.'
-                            : _hamnosysPreview,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildPreviewPanel(
-                        title: 'Generated SiGML',
-                        content: _sigmlPreview.isEmpty
-                            ? 'Generated SiGML will appear here.'
-                            : _sigmlPreview,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPreviewPanel({required String title, required String content}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListView(
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          SelectableText(
-            content,
-            style: const TextStyle(fontSize: 12, height: 1.4),
-          ),
-        ],
       ),
     );
   }

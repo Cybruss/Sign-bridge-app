@@ -8,21 +8,21 @@ Sign Bridge is a mobile prototype with two separate sign-to-text routes: an isol
 
 ## Suggested live walkthrough
 
-1. **Sign-to-Text word model:** wait for camera, Holistic, and model readiness. Show landmarks, the candidate, the cosine similarity, and editable text. For a known label, use a local WLASL reference clip and imitate one isolated word at a time. Tap **Add** only after reviewing the candidate. The paired app-model held-out top-1 result is 26.79%; real-camera user accuracy has not been measured.
-2. **Alphabet fallback:** select **Alphabet fallback**. Hold a static handshape in frame until it is accepted, briefly lower the hand between letters, and tap **Space** between words. The model auto-detects static A–I and K–Y; use the letter keys to correct text and to enter J/Z. Explain that its 90.29% result is from a small image-level split, not signer-independent evaluation. Use this route to spell a short word, not to claim continuous ASL translation.
+1. **Recognize words:** wait for the camera, then demonstrate the review-before-accept flow. Use a local WLASL reference clip for the exact word and ask a fluent signer to perform it if available. Treat the result as a suggestion; do not promise a correct recognition. The paired held-out top-1 result is 26.79%; real-camera user accuracy has not been measured.
+2. **Spell by hand:** hold a static handshape in frame until a letter is accepted, briefly lower the hand between letters, and use **Space** between words. Use the letter keys to correct text. Explain that the 90.29% result is from a small image-level split, not signer-independent evaluation. Use this route to compose editable text, not to claim continuous sign translation. If no fluent signer is available, demonstrate the manual correction controls instead of inventing ground truth.
 3. **Local word animation:** enter `I want pizza` and play the available GLB clips. This demonstrates clip lookup/playback; it is not sentence translation.
 4. **Local SiGML examples:** try `welcome`, `I take mug`, `Scotland`, or `orange blender explode`. Show the generated SiGML and avatar. This concatenates a few NGT examples and does not translate English grammar or ASL.
 5. **Online fallback:** open Rylo Translate with internet access. The in-app page is Rylo's hosted service; treat it as an external service route, not a bundled model.
 
 ## Device preparation
 
-The connected demo phone is a Pixel 6 Pro (Android 16). The device-specific arm64 debug APK is built at `build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk` (the universal debug APK is `build/app/outputs/flutter-apk/app-debug.apk`). With wireless debugging connected, install/update it using:
+The connected demo phone is a Pixel 6 Pro (Android 16). The arm64 release APK is at `build/app/outputs/flutter-apk/app-release.apk`. With wireless debugging connected, install/update it using:
 
 ```bash
-adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Before evaluators arrive, open the app once, grant camera permission, check the on-device model/Holistic status, and confirm the avatar player has loaded. The latest Pixel install was checked for launch, camera/Holistic readiness, alphabet fallback loading and rejection of a low-match pose, manual A/B/C sentence composition, and `orange blender explode` SiGML loading/playback. Keep the phone online for the Rylo route. If time is short, prioritize the local GLB demo, then show the SiGML player as the local text-to-sign research prototype.
+Before evaluators arrive, open the app once, grant camera permission, check that the camera is ready, and confirm the signing avatar has loaded. The latest Pixel install was checked for launch, camera readiness, low-match rejection in the hand-spelling mode, manual A/B/C message composition, and `orange blender explode` example playback. Keep the phone online for the Rylo route. If time is short, prioritize the local word animations, then show the local sign examples.
 
 ## Rehearse with labeled signs
 
@@ -46,4 +46,4 @@ Open the CSV and play the referenced `videos/<id>.mp4` clip with VLC (or another
 
 See [MODEL_EVALUATION.md](MODEL_EVALUATION.md), [TEXT_TO_SIGN.md](TEXT_TO_SIGN.md), and [DATASET_AND_LICENSES.md](DATASET_AND_LICENSES.md) for methodology and provenance limits.
 
-The new fingerspelling model's training protocol, metrics, and defense explanation are in [ALPHABET_FALLBACK.md](ALPHABET_FALLBACK.md). The project workspace contains several bundled `.sigml` examples, but no additional standalone `.hamnosys`/`.hns` files were found under the Desktop or mounted data volume during this audit. New HamNoSys/SiGML signs can only be integrated after the files and their license/provenance are supplied; see [TEXT_TO_SIGN.md](TEXT_TO_SIGN.md) for the current lexicon workflow.
+The fingerspelling methodology and sign-to-text evaluator answers are in [ALPHABET_FALLBACK.md](ALPHABET_FALLBACK.md) and [SIGN_TO_TEXT_DEFENSE.md](SIGN_TO_TEXT_DEFENSE.md). The project workspace contains bundled SiGML examples, but no additional standalone `.hamnosys`/`.hns` files were found under the searched Desktop or mounted data directories.

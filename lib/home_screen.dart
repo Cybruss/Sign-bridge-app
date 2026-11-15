@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'screens/sign_test_screen.dart';
 import 'screens/text_to_sign_hub_screen.dart';
 import 'sign_to_text_screen.dart';
 
@@ -13,10 +12,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-
-  void _open(BuildContext context, Widget screen) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
-  }
 
   void _selectTab(int index) => setState(() => _selectedIndex = index);
 
@@ -44,19 +39,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 11),
                   const Text(
-                    'Sign Bridge',
+                    'SignBridge',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
-              actions: [
-                IconButton(
-                  tooltip: 'Model check',
-                  onPressed: () => _open(context, const SignTestScreen()),
-                  icon: const Icon(Icons.info_outline_rounded),
-                ),
-                const SizedBox(width: 8),
-              ],
             )
           : null,
       body: _selectedIndex == 1
@@ -74,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [colors.primary, const Color(0xFF173B54)],
+                        colors: [colors.primary, const Color(0xFF1A1C22)],
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -97,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(30),
                           ),
                           child: const Text(
-                            'SIGN LANGUAGE • PROJECT DEMO',
+                            'SIGN • TEXT • CONNECTION',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 10,
@@ -108,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 18),
                         const Text(
-                          'Communication,\nmade more accessible.',
+                          'A live bridge\nbetween sign and text.',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 27,
@@ -119,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Explore sign recognition and visual sign demos.',
+                          'Explore ways to express and understand signs.',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: .78),
                             fontSize: 14,
@@ -145,26 +132,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 25),
                   const _SectionTitle(
-                    title: 'Explore the prototype',
-                    subtitle: 'Choose a direction to get started',
+                    title: 'Explore Sign Bridge',
+                    subtitle: 'Choose an activity to get started',
                   ),
                   const SizedBox(height: 13),
                   _FeatureCard(
                     icon: Icons.videocam_outlined,
                     title: 'Sign to text',
-                    subtitle: 'Use the camera to recognize isolated words',
-                    tag: 'ON DEVICE',
-                    color: const Color(0xFF147D78),
+                    subtitle:
+                        'Recognize a sign or spell a message with hand shapes',
+                    tag: 'CAMERA',
+                    color: const Color(0xFFAE5736),
                     onTap: () => _selectTab(1),
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
                     icon: Icons.sign_language_rounded,
                     title: 'Text to sign',
-                    subtitle:
-                        'Local avatar examples, SiGML, and online fallback',
-                    tag: '3 OPTIONS',
-                    color: const Color(0xFF4962A8),
+                    subtitle: 'Explore available signs, examples, and videos',
+                    tag: 'VISUAL SIGNS',
+                    color: const Color(0xFF9A653B),
                     onTap: () => _selectTab(2),
                   ),
                   const SizedBox(height: 20),
@@ -188,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 11),
                         Expanded(
                           child: Text(
-                            'Demo note: recognition covers isolated words. The avatar and online options are limited demonstrations, not full sentence translation.',
+                            'Sign recognition supports a limited set of signs and hand-spelled letters. Visual examples cover selected words.',
                             style: TextStyle(
                               color: colors.onSurfaceVariant,
                               fontSize: 12,
@@ -197,14 +184,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () => _open(context, const SignTestScreen()),
-                      icon: const Icon(Icons.fact_check_outlined, size: 17),
-                      label: const Text('Model diagnostics'),
                     ),
                   ),
                 ],
