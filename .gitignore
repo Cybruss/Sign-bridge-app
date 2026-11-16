@@ -52,6 +52,9 @@ app.*.map.json
 /output.txt
 /[0-9]*output.txt
 
+# Optional upstream SiGML Player desktop installers (download from CWASA).
+/jas/loc2025/app/SiGML-Player.*
+
 # Local credentials, environment files, and generated training data
 .env
 .env.*

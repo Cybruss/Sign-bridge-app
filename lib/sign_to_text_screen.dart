@@ -27,11 +27,16 @@ const _minimumLetterMargin = 0.18;
 
 enum _RecognitionMode { words, fingerspelling }
 
-/// Overlay painter for hand landmarks (21 points each).
+/// Overlay painter for the same 180 selected points the word model consumes.
 class LandmarksPainter extends CustomPainter {
-  final List<List<double>> hands;
+  final List<double> landmarks;
   final bool mirror;
-  LandmarksPainter({required this.hands, this.mirror = false});
+  final bool showUpperBodyAndFace;
+  LandmarksPainter({
+    required this.landmarks,
+    this.mirror = false,
+    this.showUpperBodyAndFace = true,
+  });
 
   static const pairs = <List<int>>[
     [0, 1], [1, 2], [2, 3], [3, 4], // thumb
@@ -43,43 +48,85 @@ class LandmarksPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (hands.isEmpty) return;
-    final handColors = <Color>[Colors.greenAccent, Colors.cyanAccent];
+    if (landmarks.length < 180 * 3) return;
+    Offset point(int index) {
+      final x = landmarks[index * 3];
+      final y = landmarks[index * 3 + 1];
+      final z = landmarks[index * 3 + 2];
+      if (!x.isFinite ||
+          !y.isFinite ||
+          !z.isFinite ||
+          (x == 0 && y == 0 && z == 0)) {
+        return const Offset(double.nan, double.nan);
+      }
+      return Offset((mirror ? 1 - x : x) * size.width, y * size.height);
+    }
 
-    for (int handIndex = 0; handIndex < hands.length; handIndex++) {
-      final landmarks = hands[handIndex];
-      if (landmarks.length < 63) continue;
+    bool visible(Offset p) =>
+        p.dx.isFinite &&
+        p.dy.isFinite &&
+        p.dx >= 0 &&
+        p.dx <= size.width &&
+        p.dy >= 0 &&
+        p.dy <= size.height;
 
-      final color = handColors[handIndex % handColors.length];
-      final paint = Paint()
+    void drawHand(int start, Color color) {
+      final stroke = Paint()
         ..color = color
-        ..strokeWidth = 2.0
+        ..strokeWidth = 2
         ..style = PaintingStyle.stroke;
-      final dot = Paint()
-        ..color = color.withValues(alpha: 0.9)
-        ..style = PaintingStyle.fill;
+      final dot = Paint()..color = color.withValues(alpha: .9);
+      for (final pair in pairs) {
+        final a = point(start + pair[0]);
+        final b = point(start + pair[1]);
+        if (visible(a) && visible(b)) canvas.drawLine(a, b, stroke);
+      }
+      for (var i = 0; i < 21; i++) {
+        final p = point(start + i);
+        if (visible(p)) canvas.drawCircle(p, 3.2, dot);
+      }
+    }
 
-      final points = <Offset>[];
-      for (int i = 0; i < 21; i++) {
-        final x = landmarks[i * 3];
-        final y = landmarks[i * 3 + 1];
-        final px = mirror ? (1 - x) * size.width : x * size.width;
-        final py = y * size.height;
-        points.add(Offset(px, py));
-      }
+    drawHand(0, Colors.greenAccent);
+    drawHand(21, Colors.cyanAccent);
 
-      for (final p in pairs) {
-        canvas.drawLine(points[p[0]], points[p[1]], paint);
-      }
-      for (final pt in points) {
-        canvas.drawCircle(pt, 4.0, dot);
-      }
+    if (!showUpperBodyAndFace) return;
+
+    // Selected pose points are shoulders, elbows and wrists.
+    final poseStroke = Paint()
+      ..color = Colors.amberAccent
+      ..strokeWidth = 2.5;
+    for (final pair in const [
+      [42, 44],
+      [44, 46],
+      [43, 45],
+      [45, 47],
+      [42, 43],
+    ]) {
+      final a = point(pair[0]);
+      final b = point(pair[1]);
+      if (visible(a) && visible(b)) canvas.drawLine(a, b, poseStroke);
+    }
+    final poseDot = Paint()..color = Colors.amberAccent;
+    for (var i = 42; i < 48; i++) {
+      final p = point(i);
+      if (visible(p)) canvas.drawCircle(p, 4.5, poseDot);
+    }
+
+    // The face input is a sparse selected subset, so display points without
+    // suggesting that this is a complete face mesh.
+    final faceDot = Paint()..color = Colors.pinkAccent;
+    for (var i = 48; i < 180; i++) {
+      final p = point(i);
+      if (visible(p)) canvas.drawCircle(p, 2.1, faceDot);
     }
   }
 
   @override
   bool shouldRepaint(covariant LandmarksPainter old) =>
-      old.hands != hands || old.mirror != mirror;
+      old.landmarks != landmarks ||
+      old.mirror != mirror ||
+      old.showUpperBodyAndFace != showUpperBodyAndFace;
 }
 
 class SignToTextScreen extends StatefulWidget {
@@ -119,6 +166,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   bool _isPredicting = false;
 
   List<List<double>> _lastHands = const [];
+  List<double>? _lastModelLandmarks;
   bool _handDetected = false;
 
   String _label = 'Show one sign to begin';
@@ -433,6 +481,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       _frameBuffer.add(frame.landmarks180!);
       setState(() {
         _lastHands = frame.overlayHands;
+        _lastModelLandmarks = frame.landmarks180;
         _handDetected = true;
       });
     } else {
@@ -441,6 +490,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       if (_handDetected) {
         setState(() {
           _lastHands = const [];
+          _lastModelLandmarks = null;
           _handDetected = false;
         });
       }
@@ -465,6 +515,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
         if (hadState) {
           setState(() {
             _lastHands = const [];
+            _lastModelLandmarks = null;
             _handDetected = false;
             _letterCandidate = '—';
             _letterIsConfident = false;
@@ -480,6 +531,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       if (!_handDetected || _lastHands.isEmpty) {
         setState(() {
           _lastHands = frame.overlayHands;
+          _lastModelLandmarks = frame.landmarks180;
           _handDetected = true;
         });
       }
@@ -490,6 +542,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     if (model == null) {
       setState(() {
         _lastHands = frame.overlayHands;
+        _lastModelLandmarks = frame.landmarks180;
         _handDetected = true;
       });
       return;
@@ -516,6 +569,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
           confident && agreedVotes >= 5 && _latchedLetter != prediction.letter;
       setState(() {
         _lastHands = frame.overlayHands;
+        _lastModelLandmarks = frame.landmarks180;
         _handDetected = true;
         _letterIsConfident = confident;
         if (shouldAppend) {
@@ -548,6 +602,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       _framesAbsent = 0;
       _handDetected = false;
       _lastHands = const [];
+      _lastModelLandmarks = null;
       _topPreds = const [];
       _label = 'Show one sign to begin';
     });
@@ -616,16 +671,25 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   }
 
   void _appendWord(String word) {
-    final words = _sentence.trim().split(RegExp(r'\s+'));
-    if (words.isNotEmpty && words.last.toLowerCase() == word.toLowerCase()) {
-      return;
-    }
     final next = _sentence.trim().isEmpty ? word : '${_sentence.trim()} $word';
     _sentenceController.value = TextEditingValue(
       text: next,
       selection: TextSelection.collapsed(offset: next.length),
     );
     _sentence = next;
+  }
+
+  void _finishSentence(String punctuation) {
+    final text = _sentence.trim();
+    if (text.isEmpty) return;
+    final body = text.replaceFirst(RegExp(r'[.!?]+$'), '');
+    if (body.isEmpty) return;
+    final sentence = '${body[0].toUpperCase()}${body.substring(1)}$punctuation';
+    _sentenceController.value = TextEditingValue(
+      text: sentence,
+      selection: TextSelection.collapsed(offset: sentence.length),
+    );
+    setState(() => _sentence = sentence);
   }
 
   void _acceptTopPrediction() {
@@ -867,15 +931,43 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
               fit: StackFit.expand,
               children: [
                 preview,
-                if (_lastHands.isNotEmpty)
+                if (_lastModelLandmarks != null)
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
                         painter: LandmarksPainter(
-                          hands: _lastHands,
+                          landmarks: _lastModelLandmarks!,
+                          showUpperBodyAndFace:
+                              _recognitionMode == _RecognitionMode.words,
                           mirror:
                               _activeCamera?.lensDirection ==
                               CameraLensDirection.front,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_lastModelLandmarks != null &&
+                    _recognitionMode == _RecognitionMode.words)
+                  Positioned(
+                    left: 10,
+                    bottom: 10,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        child: Text(
+                          'Model input · Hands 42 · Upper body 6 · Face 132',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -1060,13 +1152,24 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Your message',
+                      'Build a sentence',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
+                  if (_recognitionMode == _RecognitionMode.words)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 3),
+                        child: Text(
+                          'Add each confirmed word in signing order, edit as needed, then finish with punctuation.',
+                          style: TextStyle(fontSize: 12, height: 1.3),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 6),
                   Container(
                     width: double.infinity,
@@ -1094,6 +1197,34 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  if (_recognitionMode == _RecognitionMode.words)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 6,
+                        children: [
+                          TextButton.icon(
+                            onPressed: _sentence.trim().isEmpty
+                                ? null
+                                : () => _finishSentence('.'),
+                            icon: const Icon(Icons.check_circle_outline),
+                            label: const Text('Finish sentence'),
+                          ),
+                          TextButton(
+                            onPressed: _sentence.trim().isEmpty
+                                ? null
+                                : () => _finishSentence('?'),
+                            child: const Text('Question ?'),
+                          ),
+                          TextButton(
+                            onPressed: _sentence.trim().isEmpty
+                                ? null
+                                : () => _finishSentence('!'),
+                            child: const Text('Exclamation !'),
+                          ),
+                        ],
+                      ),
+                    ),
                   Wrap(
                     spacing: 8,
                     children: [
@@ -1122,6 +1253,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                           setState(() {
                             _resetBuffer();
                             _lastHands = const [];
+                            _lastModelLandmarks = null;
                             _label = 'Show one sign to begin';
                             _topPreds = const [];
                             _sentence = '';
