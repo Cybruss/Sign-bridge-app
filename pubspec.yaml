@@ -98,7 +98,7 @@ flutter:
     - assets/ml/labels.json
     - assets/ml/fingerspelling.tflite
     - assets/ml/fingerspelling_labels.json
-    - assets/avatars/AmyAvatarnew.glb
+    - assets/avatars/AmyAvatarnew.glb.gz
     # Small, local CWASA subset for the experimental SiGML examples screen.
     # Bundle one avatar and the player dependencies, not the full 445 MB JAS tree.
     - jas/loc2025/cwa/

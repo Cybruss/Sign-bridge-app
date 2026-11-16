@@ -55,9 +55,12 @@ class HolisticLandmarkerProcessor(private val context: Context) : AutoCloseable 
                             .build()
                     )
                     .setRunningMode(RunningMode.IMAGE)
-                    .setMinFaceDetectionConfidence(0.5f)
-                    .setMinPoseDetectionConfidence(0.5f)
-                    .setMinHandLandmarksConfidence(0.5f)
+                    // A modest threshold improves recall for small or fast
+                    // hands in the live camera. UI temporal grace prevents a
+                    // single weak frame from making the skeleton flash.
+                    .setMinFaceDetectionConfidence(0.4f)
+                    .setMinPoseDetectionConfidence(0.4f)
+                    .setMinHandLandmarksConfidence(0.35f)
                     .build()
                 holistic = HolisticLandmarker.createFromOptions(context, options)
                 Log.i(TAG, "HolisticLandmarkerProcessor initialized ($delegate)")

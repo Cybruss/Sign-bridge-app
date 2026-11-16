@@ -6,7 +6,7 @@ Sign Bridge is a Flutter prototype for **isolated ASL word recognition** and a s
 
 - **Sign to Text (Android):** recognizes a limited vocabulary of isolated signs. Suggested words must be reviewed before adding them to the editable message.
 - **Spell by hand (Android):** a separate fingerspelling mode builds editable text from still letter shapes, with on-screen correction and space controls. Some moving letters are entered with the keyboard. See [the model card](docs/ALPHABET_FALLBACK.md).
-- **Text to Sign:** plays a small set of avatar clips by matching words to named GLB animations. It reports unsupported words. This is a word-by-word animation demo; it does not translate English grammar into ASL grammar. The individual clips still require sign-language expert review.
+- **Text to Sign:** looks up words and phrases against the Amy avatar's embedded animation list (about 2,007 normalized clip names in the replacement asset). It reports unsupported words. This is a word-by-word animation demo; it does not translate English grammar into ASL grammar. The individual clips still require sign-language expert review.
 - **Text to Sign · SiGML examples (Android):** locally plays a few bundled NGT SiGML examples on a CWASA avatar. It matches known lexicon entries; it is not full English-to-sign translation or ASL.
 - **Rylo Translate · online:** opens Rylo's hosted text-to-sign page in a WebView. It requires internet, and the public page currently reports that its latest Sign models are unavailable.
 
@@ -50,6 +50,8 @@ Share `build/app/outputs/flutter-apk/app-release.apk` through a private team fil
 For a signed APK, install from a team file share or build it locally with the commands above. Do not copy Kaggle credentials, checkpoints, or raw videos into the repository.
 
 The Android permission prompt must be accepted for camera recognition. Training uses a separate Python/Kaggle workflow; Python credentials are never part of the mobile app.
+
+The updated Amy avatar is shipped as `assets/avatars/AmyAvatarnew.glb.gz` so its source file stays below GitHub's 100 MB single-file limit. The app expands it to a temporary GLB on first use. See [avatar setup and vocabulary notes](docs/AVATAR_SETUP.md).
 
 ## Development checks
 

@@ -22,6 +22,8 @@ import 'services/fingerspelling_inference.dart';
 const _minFramesForSign = 12; // ignore clips shorter than this
 const _maxFramesBuffer = 96; // cap buffer length (~a few seconds)
 const _framesAbsentToPredict = 6; // hand gone this many frames => sign ended
+const _overlayMissGraceFrames =
+    3; // keep the skeleton stable through brief detector misses
 const _minimumLetterScore = 0.93;
 const _minimumLetterMargin = 0.18;
 
@@ -163,6 +165,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   // Per-sign frame buffer. Each entry is a flat 540-length (180x3) vector.
   final List<List<double>> _frameBuffer = [];
   int _framesAbsent = 0;
+  int _overlayMisses = 0;
   bool _isPredicting = false;
 
   List<List<double>> _lastHands = const [];
@@ -325,10 +328,9 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
 
     final controller = CameraController(
       cam,
-      // Low resolution: MediaPipe Holistic only needs enough detail to find
-      // landmarks, and smaller frames mean less YUV data to ship over the
-      // method channel and far faster detection.
-      ResolutionPreset.low,
+      // Medium gives Holistic more hand pixels, reducing missed detections;
+      // the native processor still drops frames while inference is busy.
+      ResolutionPreset.medium,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -477,6 +479,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     if (frame.hasHands && frame.landmarks180 != null) {
       // Collect this frame into the current sign clip.
       _framesAbsent = 0;
+      _overlayMisses = 0;
       if (_frameBuffer.length >= _maxFramesBuffer) _frameBuffer.removeAt(0);
       _frameBuffer.add(frame.landmarks180!);
       setState(() {
@@ -487,7 +490,8 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
     } else {
       // No hands this frame — maybe the sign just ended.
       _framesAbsent++;
-      if (_handDetected) {
+      _overlayMisses++;
+      if (_handDetected && _overlayMisses > _overlayMissGraceFrames) {
         setState(() {
           _lastHands = const [];
           _lastModelLandmarks = null;
@@ -709,6 +713,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
   void _resetBuffer() {
     _frameBuffer.clear();
     _framesAbsent = 0;
+    _overlayMisses = 0;
   }
 
   void _showQuickGuide() {
@@ -926,7 +931,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
       body: Column(
         children: [
           Expanded(
-            flex: 3,
+            flex: 2,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -972,6 +977,82 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
                       ),
                     ),
                   ),
+                if (_sentence.trim().isNotEmpty &&
+                    _recognitionMode == _RecognitionMode.words)
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    bottom: 48,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.78),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.notes_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Sentence: $_sentence',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_topPreds.isNotEmpty &&
+                    _recognitionMode == _RecognitionMode.words)
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    right: 12,
+                    child: Card(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.94),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.translate_rounded),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Possible word: ${_topPreds.first.word}',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Add word to sentence',
+                              onPressed: _acceptTopPrediction,
+                              icon: const Icon(Icons.add_circle_outline),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 if (!_cameraRunning &&
                     _cameraController?.value.isInitialized == true)
                   Positioned(
@@ -998,7 +1079,7 @@ class _SignToTextScreenState extends State<SignToTextScreen> {
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
